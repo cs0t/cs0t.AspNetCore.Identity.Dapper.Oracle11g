@@ -1,43 +1,45 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup>
-    <AssemblyName>AspNetCore.Identity.Dapper</AssemblyName>
-    <AssemblyTitle>AspNetCore.Identity.Dapper</AssemblyTitle>
-    <TargetFrameworks>netstandard2.1;net5.0</TargetFrameworks>
-    <VersionPrefix>5.0.1</VersionPrefix>
-    <Platforms>AnyCPU;x64</Platforms>
-    
-  </PropertyGroup>
-  <ItemGroup>
-    <PackageReference Include="Dapper" Version="2.0.78" />
-    <PackageReference Include="Microsoft.AspNetCore.Identity" Version="2.2.0" />
-    <PackageReference Include="Microsoft.Extensions.Identity.Stores" Version="5.0.4" />
-    <PackageReference Include="Microsoft.Data.SqlClient" Version="2.1.2" />
-  </ItemGroup>
-  <PropertyGroup>
-    <GenerateDocumentationFile>false</GenerateDocumentationFile>
-    <NoWarn>$(NoWarn);1591</NoWarn>
-    <PackageId>VeryGood.AspNetCore.Identity.Dapper</PackageId>
-    <Authors>Simon Faltum</Authors>
-    <Company>Very Good Consulting Company</Company>
-    <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <Product>VeryGood.AspNetCore.Identity.Dapper</Product>
-    <PackageProjectUrl>https://github.com/simonfaltum/AspNetCore.Identity.Dapper</PackageProjectUrl>
-    <PackageTags>aspnetcore.identity dapper identityserver4 aspnet.identity</PackageTags>
-    <RepositoryUrl>https://github.com/simonfaltum/AspNetCore.Identity.Dapper</RepositoryUrl>
-    <Description>This project provides a Dapper implementation of UserStore and RoleStore, to be used with Microsoft.AspNetCore.Identity.</Description>
-    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
-    <Version>5.0.1.1</Version>
-    <ApplicationIcon />
-    <OutputType>Library</OutputType>
-    <StartupObject />
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
-    <PlatformTarget>AnyCPU</PlatformTarget>
-    <DocumentationFile />
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <PlatformTarget>x64</PlatformTarget>
-    <DocumentationFile />
-  </PropertyGroup>
+    <PropertyGroup>
+        <PackageId>cs0t.AspNetCore.Identity.Dapper.Oracle11g</PackageId>
+        <Version>1.0.0</Version>
+        <TargetFrameworks>netstandard2.1;net8.0</TargetFrameworks>
+        <LangVersion>12.0</LangVersion>
+        <AssemblyName>cs0t.AspNetCore.Identity.Dapper.Oracle11g</AssemblyName>
+        <AssemblyTitle>cs0t.AspNetCore.Identity.Dapper.Oracle11g</AssemblyTitle>
+        <Platforms>AnyCPU;x64</Platforms>
+        <OutputType>Library</OutputType>
+        <GenerateDocumentationFile>false</GenerateDocumentationFile>
+        <NoWarn>$(NoWarn);1591</NoWarn>
+        <Authors>cs0t, Simon Faltum</Authors>
+        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <Product>cs0t.AspNetCore.Identity.Dapper.Oracle11g</Product>
+        <PackageProjectUrl>https://github.com</PackageProjectUrl>
+        <RepositoryUrl>https://github.com</RepositoryUrl>
+        <Description>A Dapper-backed implementation of ASP.NET Core Identity Stores updated for .NET 8 and customized for legacy Oracle 11g (11.2.0.3.0) databases using the 19c LTS driver.</Description>
+        <PackageTags>aspnetcore.identity dapper oracle11g identity</PackageTags>
+        <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+    </PropertyGroup>
+
+    <ItemGroup Condition="'$(TargetFramework)' == 'net8.0'">
+        <PackageReference Include="Dapper" Version="2.1.35" />
+        <PackageReference Include="Oracle.ManagedDataAccess.Core" Version="19.23.0" />
+        <PackageReference Include="Microsoft.AspNetCore.Identity" Version="2.3.12" />
+        <PackageReference Include="Microsoft.Extensions.Identity.Stores" Version="8.0.30" />
+    </ItemGroup>
+
+    <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.1'">
+        <PackageReference Include="Dapper" Version="2.1.35" />
+        <PackageReference Include="Oracle.ManagedDataAccess.Core" Version="19.23.0" />
+        <PackageReference Include="Microsoft.AspNetCore.Identity" Version="2.3.12" />
+        <PackageReference Include="Microsoft.Extensions.Identity.Stores" Version="8.0.30" />
+    </ItemGroup>
+
+    <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+        <PlatformTarget>AnyCPU</PlatformTarget>
+    </PropertyGroup>
+
+    <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+        <PlatformTarget>x64</PlatformTarget>
+    </PropertyGroup>
 
 </Project>
