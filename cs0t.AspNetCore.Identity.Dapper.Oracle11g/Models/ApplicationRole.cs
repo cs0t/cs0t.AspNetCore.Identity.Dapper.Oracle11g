@@ -2,7 +2,7 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Identity;
 
-namespace AspNetCore.Identity.Dapper.Models
+namespace cs0t.AspNetCore.Identity.Dapper.Oracle11g.Models
 {
     public class ApplicationRole : IdentityRole
     {

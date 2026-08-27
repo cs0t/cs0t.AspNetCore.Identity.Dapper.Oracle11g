@@ -1,7 +1,7 @@
 ﻿using Microsoft.Data.SqlClient;
 using System.Threading.Tasks;
 
-namespace AspNetCore.Identity.Dapper
+namespace cs0t.AspNetCore.Identity.Dapper.Oracle11g
 {
     public interface IDatabaseConnectionFactory
     {

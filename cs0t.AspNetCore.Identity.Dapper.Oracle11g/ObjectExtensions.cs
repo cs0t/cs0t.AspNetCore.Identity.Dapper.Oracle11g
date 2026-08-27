@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace AspNetCore.Identity.Dapper
+namespace cs0t.AspNetCore.Identity.Dapper.Oracle11g
 {
     internal static class ObjectExtensions
     {

@@ -1,9 +1,9 @@
 ﻿using System.Collections.Generic;
 using System.Threading.Tasks;
-using AspNetCore.Identity.Dapper.Stores;
+using cs0t.AspNetCore.Identity.Dapper.Oracle11g.Stores;
 using Dapper;
 
-namespace AspNetCore.Identity.Dapper.Providers
+namespace cs0t.AspNetCore.Identity.Dapper.Oracle11g.Providers
 {
     internal class UserTokensProvider
     {

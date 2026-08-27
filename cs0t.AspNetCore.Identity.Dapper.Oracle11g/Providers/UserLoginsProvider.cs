@@ -2,12 +2,12 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using AspNetCore.Identity.Dapper.Models;
-using AspNetCore.Identity.Dapper.Stores;
+using cs0t.AspNetCore.Identity.Dapper.Oracle11g.Models;
+using cs0t.AspNetCore.Identity.Dapper.Oracle11g.Stores;
 using Dapper;
 using Microsoft.AspNetCore.Identity;
 
-namespace AspNetCore.Identity.Dapper.Providers
+namespace cs0t.AspNetCore.Identity.Dapper.Oracle11g.Providers
 {
     internal class UserLoginsProvider
     {

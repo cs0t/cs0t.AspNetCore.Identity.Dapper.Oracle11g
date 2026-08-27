@@ -4,11 +4,11 @@ using System.Linq;
 using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
-using AspNetCore.Identity.Dapper.Models;
-using AspNetCore.Identity.Dapper.Providers;
+using cs0t.AspNetCore.Identity.Dapper.Oracle11g.Models;
+using cs0t.AspNetCore.Identity.Dapper.Oracle11g.Providers;
 using Microsoft.AspNetCore.Identity;
 
-namespace AspNetCore.Identity.Dapper.Stores
+namespace cs0t.AspNetCore.Identity.Dapper.Oracle11g.Stores
 {
     public class UserStore : IQueryableUserStore<ApplicationUser>, IUserEmailStore<ApplicationUser>, IUserLoginStore<ApplicationUser>, IUserPasswordStore<ApplicationUser>,
         IUserPhoneNumberStore<ApplicationUser>, IUserTwoFactorStore<ApplicationUser>, IUserSecurityStampStore<ApplicationUser>, IUserClaimStore<ApplicationUser>,

@@ -3,7 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 16
 VisualStudioVersion = 16.0.29209.62
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "AspNetCore.Identity.Dapper", "AspNetCore.Identity.Dapper\AspNetCore.Identity.Dapper.csproj", "{697017DE-EE18-4806-B749-D9BF9895D642}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "cs0t.AspNetCore.Identity.Dapper.Oracle11g", "cs0t.AspNetCore.Identity.Dapper.Oracle11g\cs0t.AspNetCore.Identity.Dapper.Oracle11g.csproj", "{697017DE-EE18-4806-B749-D9BF9895D642}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

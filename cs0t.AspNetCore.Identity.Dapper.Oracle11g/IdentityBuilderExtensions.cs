@@ -3,13 +3,13 @@
  */
 
 using System;
-using AspNetCore.Identity.Dapper.Models;
-using AspNetCore.Identity.Dapper.Stores;
+using cs0t.AspNetCore.Identity.Dapper.Oracle11g.Models;
+using cs0t.AspNetCore.Identity.Dapper.Oracle11g.Stores;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
-namespace AspNetCore.Identity.Dapper
+namespace cs0t.AspNetCore.Identity.Dapper.Oracle11g
 {
     /// <summary>
     /// Extension methods on <see cref="IdentityBuilder"/> class.

@@ -1,4 +1,4 @@
-﻿namespace AspNetCore.Identity.Dapper.Stores
+﻿namespace cs0t.AspNetCore.Identity.Dapper.Oracle11g.Stores
 {
     internal class UserRole
     {
