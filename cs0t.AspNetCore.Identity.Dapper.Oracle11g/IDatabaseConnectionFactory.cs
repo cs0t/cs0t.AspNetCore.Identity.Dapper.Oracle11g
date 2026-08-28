@@ -1,11 +1,12 @@
-﻿using Microsoft.Data.SqlClient;
+﻿using System.Threading;
 using System.Threading.Tasks;
+using Oracle.ManagedDataAccess.Client;
 
 namespace cs0t.AspNetCore.Identity.Dapper.Oracle11g
 {
     public interface IDatabaseConnectionFactory
     {
-        Task<SqlConnection> CreateConnectionAsync();
-        string DbSchema { get; set; }
+        Task<OracleConnection> CreateConnectionAsync(CancellationToken ct = default);
+        DbProviderOptions Options { get; }
     }
 }
