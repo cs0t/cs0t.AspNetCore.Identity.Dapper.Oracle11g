@@ -8,6 +8,7 @@ using cs0t.AspNetCore.Identity.Dapper.Oracle11g.Stores;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Oracle.ManagedDataAccess.Client;
 
 namespace cs0t.AspNetCore.Identity.Dapper.Oracle11g
 {
@@ -18,37 +19,39 @@ namespace cs0t.AspNetCore.Identity.Dapper.Oracle11g
     {
         /// <summary>
         /// Adds a Dapper implementation of ASP.NET Core Identity stores.
+        /// allows logon version11 by default. 
         /// </summary>
         /// <param name="builder">Helper functions for configuring identity services.</param>
+        /// <param name="dbProviderOptionsAction"></param>
         /// <returns>The <see cref="IdentityBuilder"/> instance this method extends.</returns>
-        public static IdentityBuilder AddDapperStores(this IdentityBuilder builder, Action<DBProviderOptions> dbProviderOptionsAction = null) {
+        public static IdentityBuilder AddDapperStores(this IdentityBuilder builder, Action<DbProviderOptions>? dbProviderOptionsAction) {
             AddStores(builder.Services, builder.UserType, builder.RoleType);
-            var options = GetDefaultOptions();
+            var options = new DbProviderOptions();
             dbProviderOptionsAction?.Invoke(options);
             builder.Services.AddSingleton(options);
-            builder.Services.AddScoped<IDatabaseConnectionFactory>(service => new DefaultSqlConnectionFactory(options.ConnectionString, options.DbSchema));
+            
+            //create supported 11g connection out of box
+            OracleConfiguration.SqlNetAllowedLogonVersionClient = OracleAllowedLogonVersionClient.Version11;
+            
+            builder.Services.AddScoped<IDatabaseConnectionFactory>( _ => DefaultOracleConnectionFactory.Create(options));
 
             return builder;
         }
 
-        private static void AddStores(IServiceCollection services, Type userType, Type roleType) {
+        private static void AddStores(IServiceCollection services, Type userType, Type? roleType) {
             if (userType != typeof(ApplicationUser)) {
                 throw new InvalidOperationException($"{nameof(AddDapperStores)} can only be called with a user that is of type {nameof(ApplicationUser)}.");
             }
 
-            if (roleType != null) {
-                if (roleType != typeof(ApplicationRole)) {
-                    throw new InvalidOperationException($"{nameof(AddDapperStores)} can only be called with a role that is of type {nameof(ApplicationRole)}.");
-                }
-
-                services.TryAddScoped<IUserStore<ApplicationUser>, UserStore>();
-                services.TryAddScoped<IRoleStore<ApplicationRole>, RoleStore>();
+            if (roleType is null) 
+                return;
+            
+            if (roleType != typeof(ApplicationRole)) {
+                throw new InvalidOperationException($"{nameof(AddDapperStores)} can only be called with a role that is of type {nameof(ApplicationRole)}.");
             }
-        }
 
-        public static DBProviderOptions GetDefaultOptions()
-        {
-            return new DBProviderOptions();
+            services.TryAddScoped<IUserStore<ApplicationUser>, UserStore>();
+            services.TryAddScoped<IRoleStore<ApplicationRole>, RoleStore>();
         }
     }
 }
