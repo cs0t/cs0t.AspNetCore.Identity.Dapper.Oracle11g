@@ -1,4 +1,5 @@
-﻿using System.Data;
+﻿using System;
+using System.Data;
 using System.Threading;
 using System.Threading.Tasks;
 using Dapper;
@@ -6,40 +7,42 @@ using Oracle.ManagedDataAccess.Client;
 
 namespace cs0t.AspNetCore.Identity.Dapper.Oracle11g
 {
-    public class DefaultSqlConnectionFactory : IDatabaseConnectionFactory
+    public class DefaultOracleConnectionFactory : IDatabaseConnectionFactory
     {
-        public string DbSchema { get; }
+        public DbProviderOptions Options { get; }
         
-        public string UsersTableName { get; }
-        public string RolesTableName { get; }
-        public string UserRolesTableName { get; }
-        public string UserClaimsTable { get; }
-        public string UserRoleClaimsTable { get; }
-        public string UserLoginsTableName { get; }
-        public string UserTokensTableName { get; }
-        
-        private readonly string _connectionString;
-        
-        public DefaultSqlConnectionFactory(string connectionString, string schema)
+        private DefaultOracleConnectionFactory(DbProviderOptions options)
         {
-            schema = schema
-                .Replace("[", string.Empty)
-                .Replace("]", string.Empty)
-                .Replace("`", string.Empty)
-                .Trim()
-                .ToUpper();
-            
-            
-            _connectionString = connectionString ?? string.Empty;
-            DbSchema = schema;
+            Options = options;
             
             //SqlMapper.AddTypeHandler();
             //SqlMapper.AddTypeHandler();
             //SqlMapper.AddTypeHandler();
         }
 
+        public static DefaultOracleConnectionFactory Create(DbProviderOptions options)
+        {
+            if (options is null)
+                throw new ArgumentNullException(nameof(options), "Options cannot be null.");
+
+            if (string.IsNullOrWhiteSpace(options.ConnectionString))
+                throw new ArgumentException("Connection string must be provided.", nameof(options.ConnectionString));
+
+            if (!string.IsNullOrWhiteSpace(options.DbSchema))
+            {
+                options.DbSchema = options.DbSchema
+                    .Replace("[", string.Empty)
+                    .Replace("]", string.Empty)
+                    .Replace("`", string.Empty)
+                    .Trim()
+                    .ToUpper();
+            }
+
+            return new DefaultOracleConnectionFactory(options);
+        }
+
         public async Task<OracleConnection> CreateConnectionAsync(CancellationToken ct = default) {
-            var oracleConnection = new OracleConnection(_connectionString);
+            var oracleConnection = new OracleConnection(Options.ConnectionString);
             
             oracleConnection.BindByName = true;
             
@@ -48,5 +51,6 @@ namespace cs0t.AspNetCore.Identity.Dapper.Oracle11g
             
             return oracleConnection;
         }
+
     }
 }
