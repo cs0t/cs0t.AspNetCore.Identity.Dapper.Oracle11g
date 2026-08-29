@@ -1,5 +1,6 @@
 using System;
 using System.Data;
+using System.Globalization;
 using Dapper;
 
 namespace cs0t.AspNetCore.Identity.Dapper.Oracle11g.Oracle11gTypeHandlers;
@@ -17,7 +18,11 @@ sealed class OracleGuidHandler : SqlMapper.TypeHandler<Guid?>
         }
         
         //flip before writing to database
-        parameter.Value = FlipGuidBytes(value.Value.ToByteArray());
+        var dotnetBytes = value.Value.ToByteArray();
+        
+        FlipGuidBytes(dotnetBytes);
+        
+        parameter.Value = dotnetBytes;
         parameter.DbType = DbType.Binary;
     }
 
@@ -28,62 +33,58 @@ sealed class OracleGuidHandler : SqlMapper.TypeHandler<Guid?>
         
         //if raw byte stream is read, flip and create guid
         if(value is byte[] bytes)
-            return new Guid(FlipGuidBytes(bytes));
+        {
+            if (bytes.Length != 16)
+                return null;
+            
+            FlipGuidBytes(bytes);
+            return new Guid(bytes);
+        }
         
         //if we read it in string format
         var stringValue = value.ToString()?.Trim();
 
         if (!string.IsNullOrEmpty(stringValue))
         {
-            //case1: regular guid format
+            //case1: regular guid format "30dd879c-ee2f-..." dotnet handles itself
             if(stringValue.Contains("-"))
                 return Guid.Parse(stringValue);
             
-            //case2: string but in hexadecimal format 
-            var stringBytes = HexStringToBytesArray(stringValue);
-            return new Guid(FlipGuidBytes(stringBytes));
+            //case2: oracle 11g returns raw string instead of bytes "30DD879CEE2F..."
+            if (stringValue.Length == 32)
+            {
+                var hexBytes = HexStringToByteArray(stringValue);
+                FlipGuidBytes(hexBytes);
+                return new Guid(hexBytes);
+            }
+               
         }
         return null;
     }
-
-    private static byte[] HexStringToBytesArray(string hexString)
+    
+    private static byte[] HexStringToByteArray(string hex)
     {
-        if(hexString.Length % 2 != 0)
-            hexString = "0" + hexString;
+        var bytes = new byte[16]; 
         
-        //after length is assured to be even number, create bytes array, 1byte - 2chars
-        var charNumbers = hexString.Length;
-        var bytes = new byte[charNumbers/2];
-
-        for (int i = 0; i < charNumbers; i += 2)
+        for (var i = 0; i < 32; i += 2)
         {
-            //grab each byte from string (grab 2 chars each iteration)
-            var hexSegment = hexString.Substring(i, 2);
-            bytes[i / 2] = Convert.ToByte(hexSegment, 16);
+            if (byte.TryParse(hex.Substring(i, 2), NumberStyles.HexNumber, 
+                    CultureInfo.InvariantCulture, out byte b))
+            {
+                bytes[i / 2] = b;
+            }
         }
         return bytes;
     }
 
-    private static byte[] FlipGuidBytes(byte[] bytes)
+    private static void FlipGuidBytes(byte[] bytes)
     { 
         //flip first 8 bytes
         if (bytes.Length != 16)
-            return bytes;
-
-        var flipped = new byte[16];
-        Array.Copy(bytes, flipped,  bytes.Length);
+            return;
         
-        flipped[0] = bytes[3];
-        flipped[1] = bytes[2];
-        flipped[2] = bytes[1];
-        flipped[3] = bytes[0];
-        
-        flipped[4] = bytes[5];
-        flipped[5] = bytes[4];
-        
-        flipped[6] = bytes[7];
-        flipped[7] = bytes[6];
-        
-        return flipped;
+        Array.Reverse(bytes,0,4);
+        Array.Reverse(bytes,4,2);
+        Array.Reverse(bytes,6,2);
     }           
 }
