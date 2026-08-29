@@ -1,35 +1,66 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
 using System.Security.Claims;
+using System.Threading;
 using System.Threading.Tasks;
-using cs0t.AspNetCore.Identity.Dapper.Oracle11g.Stores;
 using Dapper;
+using Microsoft.AspNetCore.Identity;
 
 namespace cs0t.AspNetCore.Identity.Dapper.Oracle11g.Providers
 {
-    internal class RoleClaimsProvider
+    internal class RoleClaimsProvider(IDatabaseConnectionFactory databaseConnectionFactory)
+    
     {
-        private readonly IDatabaseConnectionFactory _databaseConnectionFactory;
-
-        public RoleClaimsProvider(IDatabaseConnectionFactory databaseConnectionFactory)
+        public async Task<IList<Claim>> GetClaimsAsync(long roleId, CancellationToken ct =  default)
         {
-            _databaseConnectionFactory = databaseConnectionFactory;
-        }
-
-        public async Task<IList<Claim>> GetClaimsAsync(string roleId)
-        {
-            var command = "SELECT * " +
-                                   $"FROM [{_databaseConnectionFactory.DbSchema}].[AspNetRoleClaims] " +
-                                   "WHERE RoleId = @RoleId;";
-
-            IEnumerable<RoleClaim> roleClaims = new List<RoleClaim>();
-
-            await using var sqlConnection = await _databaseConnectionFactory.CreateConnectionAsync();
-            return (
-                    await sqlConnection.QueryAsync<RoleClaim>(command, new { RoleId = roleId })
-                )
-                .Select(x => new Claim(x.ClaimType, x.ClaimValue))
+            var command = $"""
+                SELECT ClaimType, ClaimValue 
+                FROM {databaseConnectionFactory.Options.DbSchema}.{databaseConnectionFactory.Options.UserRoleClaimsTable} 
+                WHERE RoleId = :RoleId
+                """;
+            
+            await using var oracleConnection = await databaseConnectionFactory.CreateConnectionAsync(ct).ConfigureAwait(false);
+            var result = await oracleConnection.QueryAsync<(string ClaimType, string ClaimValue)>(
+                new CommandDefinition(command, new { RoleId = roleId }, cancellationToken: ct)
+            ).ConfigureAwait(false);
+            
+            //return dotnet claims 
+            return result
+                .Select(x => new Claim(x.ClaimType!, x.ClaimValue!))
                 .ToList();
+        }
+        
+        public async Task AddClaimAsync(long roleId, Claim claim, CancellationToken ct = default)
+        {
+            claim.ThrowIfNull(nameof(claim));
+            
+            var command = $"""
+                           INSERT INTO {databaseConnectionFactory.Options.DbSchema}.{databaseConnectionFactory.Options.UserRoleClaimsTable} 
+                           (Id, RoleId, ClaimType, ClaimValue) 
+                           VALUES ({databaseConnectionFactory.Options.DbSchema}.{databaseConnectionFactory.Options.UserRoleClaimsSequence}.NEXTVAL, :RoleId, :ClaimType, :ClaimValue)
+                           """;
+
+            await using var oracleConnection = await databaseConnectionFactory.CreateConnectionAsync(ct).ConfigureAwait(false);
+            
+            await oracleConnection.ExecuteAsync(
+                new CommandDefinition(command, new { RoleId = roleId, ClaimType = claim.Type, ClaimValue = claim.Value }, cancellationToken: ct)
+            ).ConfigureAwait(false);
+        }
+        
+        public async Task RemoveClaimAsync(long roleId, Claim claim, CancellationToken ct = default)
+        {
+            claim.ThrowIfNull(nameof(claim));
+            
+            var command = $"""
+                DELETE FROM {databaseConnectionFactory.Options.DbSchema}.{databaseConnectionFactory.Options.UserRoleClaimsTable} 
+                WHERE RoleId = :RoleId AND ClaimType = :ClaimType AND ClaimValue = :ClaimValue
+                """;
+
+            await using var oracleConnection = await databaseConnectionFactory.CreateConnectionAsync(ct).ConfigureAwait(false);
+            
+            await oracleConnection.ExecuteAsync(
+                new CommandDefinition(command, new { RoleId = roleId, ClaimType = claim.Type, ClaimValue = claim.Value }, cancellationToken: ct)
+            ).ConfigureAwait(false);
         }
     }
 }
