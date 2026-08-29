@@ -14,10 +14,6 @@ namespace cs0t.AspNetCore.Identity.Dapper.Oracle11g
         private DefaultOracleConnectionFactory(DbProviderOptions options)
         {
             Options = options;
-            
-            //SqlMapper.AddTypeHandler();
-            //SqlMapper.AddTypeHandler();
-            //SqlMapper.AddTypeHandler();
         }
 
         public static DefaultOracleConnectionFactory Create(DbProviderOptions options)
