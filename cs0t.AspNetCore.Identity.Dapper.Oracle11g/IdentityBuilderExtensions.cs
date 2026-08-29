@@ -4,7 +4,9 @@
 
 using System;
 using cs0t.AspNetCore.Identity.Dapper.Oracle11g.Models;
+using cs0t.AspNetCore.Identity.Dapper.Oracle11g.Oracle11gTypeHandlers;
 using cs0t.AspNetCore.Identity.Dapper.Oracle11g.Stores;
+using Dapper;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -32,6 +34,16 @@ namespace cs0t.AspNetCore.Identity.Dapper.Oracle11g
             
             //create supported 11g connection out of box
             OracleConfiguration.SqlNetAllowedLogonVersionClient = OracleAllowedLogonVersionClient.Version11;
+            
+            //add type handlers once on startup
+            SqlMapper.AddTypeHandler(typeof(DateTimeOffset), new OracleDateTimeOffsetHandler());
+            SqlMapper.AddTypeHandler(typeof(DateTimeOffset?), new OracleDateTimeOffsetHandler());
+
+            SqlMapper.AddTypeHandler(typeof(Guid), new OracleGuidHandler());
+            SqlMapper.AddTypeHandler(typeof(Guid?), new OracleGuidHandler());
+
+            SqlMapper.AddTypeHandler(typeof(bool), new OracleBoolHandler());
+            SqlMapper.AddTypeHandler(typeof(bool?), new OracleBoolHandler());
             
             builder.Services.AddScoped<IDatabaseConnectionFactory>( _ => DefaultOracleConnectionFactory.Create(options));
 
