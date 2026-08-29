@@ -43,7 +43,7 @@ namespace cs0t.AspNetCore.Identity.Dapper.Oracle11g
             oracleConnection.BindByName = true;
             
             if (oracleConnection.State != ConnectionState.Open)  
-                await oracleConnection.OpenAsync(ct);
+                await oracleConnection.OpenAsync(ct).ConfigureAwait(false);
             
             return oracleConnection;
         }

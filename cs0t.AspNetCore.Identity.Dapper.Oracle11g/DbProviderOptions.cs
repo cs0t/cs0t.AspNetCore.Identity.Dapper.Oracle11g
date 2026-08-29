@@ -13,5 +13,9 @@
         public string UserRoleClaimsTable { get; set; } =  "ASPNET_USER_ROLE_CLAIMS";
         public string UserLoginsTableName { get; set; } =  "ASPNET_USER_LOGINS";
         public string UserTokensTableName { get; set; } =   "ASPNET_USER_TOKENS";
+        
+        public string UsersSequence { get; set; } = "SEQ_ASPNET_USERS";
+        public string UserClaimsSequence { get; set; } = "SEQ_USER_CLAIMS";
+        public string UserRoleClaimsSequence { get; set; } = "SEQ_ROLE_CLAIMS";
     }
 }
