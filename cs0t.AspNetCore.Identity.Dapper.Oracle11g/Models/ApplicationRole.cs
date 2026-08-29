@@ -4,8 +4,8 @@ using Microsoft.AspNetCore.Identity;
 
 namespace cs0t.AspNetCore.Identity.Dapper.Oracle11g.Models
 {
-    public class ApplicationRole : IdentityRole
+    public class ApplicationRole : IdentityRole<long>
     {
-        internal List<Claim> Claims { get; set; }
+        public List<IdentityRoleClaim<long>> Claims { get; set; } = [];
     }
 }
