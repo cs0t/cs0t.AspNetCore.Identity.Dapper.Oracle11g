@@ -6,6 +6,6 @@ namespace cs0t.AspNetCore.Identity.Dapper.Oracle11g.Models
 {
     public class ApplicationRole : IdentityRole<long>
     {
-        public List<IdentityRoleClaim<long>> Claims { get; set; } = [];
+        public List<IdentityRoleClaim<long>>? Claims { get; set; } 
     }
 }
