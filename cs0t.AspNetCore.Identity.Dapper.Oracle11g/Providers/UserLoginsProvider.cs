@@ -60,7 +60,11 @@ namespace cs0t.AspNetCore.Identity.Dapper.Oracle11g.Providers
             var command = $"""
                            INSERT INTO {databaseConnectionFactory.Options.DbSchema}.{databaseConnectionFactory.Options.UserLoginsTableName} 
                            (UserId, LoginProvider, ProviderKey, ProviderDisplayName) 
-                           VALUES (:UserId, :LoginProvider, :ProviderKey, :ProviderDisplayName)
+                           SELECT :UserId, :LoginProvider, :ProviderKey, :ProviderDisplayName FROM DUAL
+                           WHERE NOT EXISTS (
+                               SELECT 1 FROM {databaseConnectionFactory.Options.DbSchema}.{databaseConnectionFactory.Options.UserLoginsTableName}
+                               WHERE UserId = :UserId AND LoginProvider = :LoginProvider AND ProviderKey = :ProviderKey
+                           )
                            """;
 
             await using var oracleConnection = await databaseConnectionFactory.CreateConnectionAsync(ct).ConfigureAwait(false);
