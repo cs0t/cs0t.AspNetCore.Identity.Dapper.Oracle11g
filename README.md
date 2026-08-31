@@ -28,6 +28,18 @@ I needed this to be run together with IdentityServer4, on a schema I specified. 
 
 The library provides an implementation of the UserStore and RoleStore used by ASP.NET Core Identity. It is an alternative to using the EntityFramework implementation (middleware: .AddEntityFrameworkStores<ApplicationDbContext>()), if I remember correctly from the package Microsoft.AspNetCore.Identity.EntityFrameworkCore.
 
+### Relationship collection behavior
+
+Users are retrieved without claims, roles, logins, or tokens, and roles are retrieved without claims. Each nullable collection has the following contract:
+
+- `null` means the relationship was not loaded or changed. Aggregate updates leave its table untouched.
+- A non-null empty collection is authoritative and removes every relationship of that type during an aggregate update.
+- A populated collection is authoritative and replaces that relationship type during an aggregate update.
+
+The first Identity operation that needs a collection loads only that collection. Point operations then use targeted write-through SQL and update the loaded list after the database operation succeeds. Subsequent reads from the same aggregate use memory. `CreateAsync` and `UpdateAsync` conditionally synchronize every non-null collection in the same transaction as the root record. Do not initialize an unused collection on a detached aggregate unless replacing that collection is intentional.
+
+`ApplicationUser.Roles` contains `ApplicationUserRole` items. This type includes `RoleName` and `NormalizedRoleName`, allowing loaded role membership checks and role-name reads without another database query.
+
 More documentation on AspNetCore.Identity can be found here:
 
 [Getting started with ASP.NET Core Identity](https://docs.microsoft.com/en-us/aspnet/core/security/authentication/identity?view=aspnetcore-2.2&tabs=visual-studio)
