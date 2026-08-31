@@ -1,8 +1,6 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
-using cs0t.AspNetCore.Identity.Dapper.Oracle11g.Stores;
 using Dapper;
 using Microsoft.AspNetCore.Identity;
 
@@ -62,6 +60,21 @@ namespace cs0t.AspNetCore.Identity.Dapper.Oracle11g.Providers
             await using var oracleConnection = await databaseConnectionFactory.CreateConnectionAsync(ct).ConfigureAwait(false);
             
             await oracleConnection.ExecuteAsync(
+                new CommandDefinition(command, new { UserId = userId, LoginProvider = loginProvider, Name = name }, cancellationToken: ct)
+            ).ConfigureAwait(false);
+        }
+        
+        public async Task<string?> GetTokenAsync(long userId, string loginProvider, string name, CancellationToken ct = default)
+        {
+            var command = $"""
+                           SELECT Value 
+                           FROM {databaseConnectionFactory.Options.DbSchema}.{databaseConnectionFactory.Options.UserTokensTableName} 
+                           WHERE UserId = :UserId AND LoginProvider = :LoginProvider AND Name = :Name
+                           """;
+ 
+            await using var oracleConnection = await databaseConnectionFactory.CreateConnectionAsync(ct).ConfigureAwait(false);
+ 
+            return await oracleConnection.QuerySingleOrDefaultAsync<string?>(
                 new CommandDefinition(command, new { UserId = userId, LoginProvider = loginProvider, Name = name }, cancellationToken: ct)
             ).ConfigureAwait(false);
         }
