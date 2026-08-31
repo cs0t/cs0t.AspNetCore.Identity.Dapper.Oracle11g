@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Data;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -14,81 +15,85 @@ namespace cs0t.AspNetCore.Identity.Dapper.Oracle11g.Providers
         public async Task<IdentityResult> CreateAsync(ApplicationRole role, CancellationToken ct = default) 
         {
             role.ThrowIfNull(nameof(role));
+            ValidateClaims(role);
+            var originalId = role.Id;
             
             var command = $"""
                            INSERT INTO {databaseConnectionFactory.Options.DbSchema}.{databaseConnectionFactory.Options.RolesTableName} 
                            (Id, Name, NormalizedName, ConcurrencyStamp)
-                           VALUES (:Id, :Name, :NormalizedName, :ConcurrencyStamp)
+                           VALUES ({databaseConnectionFactory.Options.DbSchema}.{databaseConnectionFactory.Options.RolesSequence}.NEXTVAL, :Name, :NormalizedName, :ConcurrencyStamp)
+                           RETURNING Id INTO :GeneratedId
                            """;
 
             await using var oracleConnection = await databaseConnectionFactory.CreateConnectionAsync(ct).ConfigureAwait(false);
-            
-            var rowsInserted = await oracleConnection.ExecuteAsync(
-                new CommandDefinition(command, new {
-                    role.Id,
-                    role.Name,
-                    role.NormalizedName,
-                    role.ConcurrencyStamp
-                }, cancellationToken: ct)
-            ).ConfigureAwait(false);
+            await using var transaction = await oracleConnection.BeginTransactionAsync(ct).ConfigureAwait(false);
 
-            return rowsInserted == 1 
-                ? IdentityResult.Success 
-                : IdentityResult.Failed(new IdentityError { Description = $"The role with name {role.Name} could not be inserted." });
+            try
+            {
+                var parameters = new DynamicParameters(role);
+                parameters.Add("GeneratedId", dbType: DbType.Int64, direction: ParameterDirection.Output);
+
+                var rowsInserted = await oracleConnection.ExecuteAsync(
+                    new CommandDefinition(command, parameters, transaction, cancellationToken: ct)
+                ).ConfigureAwait(false);
+
+                if (rowsInserted != 1)
+                {
+                    await transaction.RollbackAsync(ct).ConfigureAwait(false);
+                    return IdentityResult.Failed(new IdentityError { Description = $"The role with name {role.Name} could not be inserted." });
+                }
+
+                role.Id = parameters.Get<long>("GeneratedId");
+                await SynchronizeClaimsAsync(oracleConnection, transaction, role, ct).ConfigureAwait(false);
+                await transaction.CommitAsync(ct).ConfigureAwait(false);
+                return IdentityResult.Success;
+            }
+            catch
+            {
+                role.Id = originalId;
+                await transaction.RollbackAsync(ct).ConfigureAwait(false);
+                throw;
+            }
         }
         
-        public async Task<IdentityResult> UpdateAsync(ApplicationRole role, CancellationToken ct = default) 
+        public async Task<IdentityResult> UpdateAsync(ApplicationRole role, string originalConcurrencyStamp ,CancellationToken ct = default) 
         {
             role.ThrowIfNull(nameof(role));
+            ValidateClaims(role);
             
-            var updateRoleCommand = $"""
-                UPDATE {databaseConnectionFactory.Options.DbSchema}.{databaseConnectionFactory.Options.RolesTableName} 
-                SET Name = :Name, NormalizedName = :NormalizedName, ConcurrencyStamp = :ConcurrencyStamp 
-                WHERE Id = :Id
-                """;
-
             await using var oracleConnection = await databaseConnectionFactory.CreateConnectionAsync(ct).ConfigureAwait(false);
-            
             await using var transaction = await oracleConnection.BeginTransactionAsync(ct).ConfigureAwait(false);
 
             try 
-            {
+            { 
+                var updateRoleCommand = $"""
+                                       UPDATE {databaseConnectionFactory.Options.DbSchema}.{databaseConnectionFactory.Options.RolesTableName} 
+                                       SET Name = :Name, NormalizedName = :NormalizedName, ConcurrencyStamp = :ConcurrencyStamp 
+                                       WHERE Id = :Id AND (ConcurrencyStamp IS NULL OR ConcurrencyStamp = :DatabaseConcurrencyStamp)
+                                       """;
+                
                 //update role
-                await oracleConnection.ExecuteAsync(
+                var rowsUpdated = await oracleConnection.ExecuteAsync(
                     new CommandDefinition(updateRoleCommand, new {
                         role.Name,
                         role.NormalizedName,
                         role.ConcurrencyStamp,
-                        role.Id
+                        role.Id,
+                        DatabaseConcurrencyStamp = originalConcurrencyStamp
                     }, transaction: transaction, cancellationToken: ct)
                 ).ConfigureAwait(false);
 
-                if (role.Claims.Count > 0) 
+                if (rowsUpdated == 0)
                 {
-                    var deleteClaimsCommand = $"""
-                        DELETE FROM {databaseConnectionFactory.Options.DbSchema}.{databaseConnectionFactory.Options.UserRoleClaimsTable} 
-                        WHERE RoleId = :RoleId
-                        """;
-                    
-                    //remove existing claims
-                    await oracleConnection.ExecuteAsync(
-                        new CommandDefinition(deleteClaimsCommand, new { RoleId = role.Id }, transaction: transaction, cancellationToken: ct)
-                    ).ConfigureAwait(false);
-
-                    var insertClaimsCommand = $"""
-                        INSERT INTO {databaseConnectionFactory.Options.DbSchema}.{databaseConnectionFactory.Options.UserRoleClaimsTable} 
-                        (Id, RoleId, ClaimType, ClaimValue) 
-                        VALUES ({databaseConnectionFactory.Options.DbSchema}.{databaseConnectionFactory.Options.UserRoleClaimsSequence}.NEXTVAL, :RoleId, :ClaimType, :ClaimValue)
-                        """;
-                    //insert new claims
-                    await oracleConnection.ExecuteAsync(
-                        new CommandDefinition(insertClaimsCommand, role.Claims.Select(x => new {
-                            RoleId = role.Id,
-                            ClaimType = x.ClaimType,
-                            ClaimValue = x.ClaimValue
-                        }), transaction: transaction, cancellationToken: ct)
-                    ).ConfigureAwait(false);
+                    await transaction.RollbackAsync(ct).ConfigureAwait(false);
+                    return IdentityResult.Failed(new IdentityError 
+                    { 
+                        Code = "ConcurrencyFailure", 
+                        Description = "Optimistic concurrency failure. The role has been modified by another process." 
+                    });
                 }
+                
+                await SynchronizeClaimsAsync(oracleConnection, transaction, role, ct).ConfigureAwait(false);
 
                 await transaction.CommitAsync(ct).ConfigureAwait(false);
                 return IdentityResult.Success;
@@ -116,6 +121,46 @@ namespace cs0t.AspNetCore.Identity.Dapper.Oracle11g.Providers
                 });
             }
         }
+
+        private async Task SynchronizeClaimsAsync(
+            IDbConnection connection,
+            IDbTransaction transaction,
+            ApplicationRole role,
+            CancellationToken ct)
+        {
+            if (role.Claims is null) return;
+
+            var deleteClaimsCommand = $"DELETE FROM {databaseConnectionFactory.Options.DbSchema}.{databaseConnectionFactory.Options.UserRoleClaimsTable} WHERE RoleId = :RoleId";
+            await connection.ExecuteAsync(
+                new CommandDefinition(deleteClaimsCommand, new { RoleId = role.Id }, transaction, cancellationToken: ct)
+            ).ConfigureAwait(false);
+
+            var claims = role.Claims
+                .GroupBy(x => new { x.ClaimType, x.ClaimValue })
+                .Select(x => x.First())
+                .ToList();
+
+            foreach (var claim in claims) claim.RoleId = role.Id;
+            if (claims.Count == 0) return;
+
+            var insertClaimsCommand = 
+                $"""
+                 INSERT INTO 
+                 {databaseConnectionFactory.Options.DbSchema}.{databaseConnectionFactory.Options.UserRoleClaimsTable} 
+                     (Id, RoleId, ClaimType, ClaimValue) 
+                 VALUES 
+                     ({databaseConnectionFactory.Options.DbSchema}.{databaseConnectionFactory.Options.UserRoleClaimsSequence}.NEXTVAL, :RoleId, :ClaimType, :ClaimValue)
+                 """;
+            await connection.ExecuteAsync(
+                new CommandDefinition(insertClaimsCommand, claims, transaction, cancellationToken: ct)
+            ).ConfigureAwait(false);
+        }
+
+        private static void ValidateClaims(ApplicationRole role)
+        {
+            if (role.Claims is not null && role.Claims.GroupBy(x => new { x.ClaimType, x.ClaimValue }).Any(x => x.Count() > 1))
+                throw new InvalidOperationException("The role contains duplicate claims.");
+        }
         
         public async Task<IdentityResult> DeleteAsync(ApplicationRole role, CancellationToken ct = default) 
         {
@@ -123,18 +168,22 @@ namespace cs0t.AspNetCore.Identity.Dapper.Oracle11g.Providers
             
             var command = $"""
                            DELETE FROM {databaseConnectionFactory.Options.DbSchema}.{databaseConnectionFactory.Options.RolesTableName} 
-                           WHERE Id = :Id
+                           WHERE Id = :Id AND (ConcurrencyStamp IS NULL OR ConcurrencyStamp = :ConcurrencyStamp)
                            """;
-
+ 
             await using var oracleConnection = await databaseConnectionFactory.CreateConnectionAsync(ct).ConfigureAwait(false);
-            
+ 
             var rowsDeleted = await oracleConnection.ExecuteAsync(
-                new CommandDefinition(command, new { role.Id }, cancellationToken: ct)
+                new CommandDefinition(command, new { role.Id, role.ConcurrencyStamp }, cancellationToken: ct)
             ).ConfigureAwait(false);
-
-            return rowsDeleted == 1 
-                ? IdentityResult.Success 
-                : IdentityResult.Failed(new IdentityError { Description = $"The role with name {role.Name} could not be deleted." });
+ 
+            return rowsDeleted == 1
+                ? IdentityResult.Success
+                : IdentityResult.Failed(new IdentityError
+                {
+                    Code = "ConcurrencyFailure",
+                    Description = $"The role with name {role.Name} could not be deleted - it may have been modified or already removed."
+                });
         }
         
         public async Task<ApplicationRole?> FindByIdAsync(long roleId, CancellationToken ct = default) 
@@ -171,7 +220,12 @@ namespace cs0t.AspNetCore.Identity.Dapper.Oracle11g.Providers
         
         public async Task<IEnumerable<ApplicationRole>> GetAllRolesAsync(CancellationToken ct = default) 
         {
-            var command = $"SELECT Id, Name, NormalizedName, ConcurrencyStamp FROM {databaseConnectionFactory.Options.DbSchema}.{databaseConnectionFactory.Options.RolesTableName}";
+            var command = 
+                $"""
+                 SELECT 
+                 Id, Name, NormalizedName, ConcurrencyStamp 
+                 FROM {databaseConnectionFactory.Options.DbSchema}.{databaseConnectionFactory.Options.RolesTableName}
+                 """;
 
             await using var oracleConnection = await databaseConnectionFactory.CreateConnectionAsync(ct).ConfigureAwait(false);
             
