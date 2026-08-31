@@ -41,7 +41,12 @@ namespace cs0t.AspNetCore.Identity.Dapper.Oracle11g.Providers
             var command = $"""
                            INSERT INTO {databaseConnectionFactory.Options.DbSchema}.{databaseConnectionFactory.Options.UserClaimsTable} 
                            (Id, UserId, ClaimType, ClaimValue) 
-                           VALUES ({databaseConnectionFactory.Options.DbSchema}.{databaseConnectionFactory.Options.UserClaimsSequence}.NEXTVAL, :UserId, :ClaimType, :ClaimValue)
+                           SELECT {databaseConnectionFactory.Options.DbSchema}.{databaseConnectionFactory.Options.UserClaimsSequence}.NEXTVAL, :UserId, :ClaimType, :ClaimValue
+                           FROM DUAL
+                           WHERE NOT EXISTS (
+                               SELECT 1 FROM {databaseConnectionFactory.Options.DbSchema}.{databaseConnectionFactory.Options.UserClaimsTable}
+                               WHERE UserId = :UserId AND ClaimType = :ClaimType AND ClaimValue = :ClaimValue
+                           )
                            """;
 
             await using var oracleConnection = await databaseConnectionFactory.CreateConnectionAsync(ct).ConfigureAwait(false);
@@ -65,6 +70,97 @@ namespace cs0t.AspNetCore.Identity.Dapper.Oracle11g.Providers
             
             await oracleConnection.ExecuteAsync(
                 new CommandDefinition(command, new { UserId = user.Id, ClaimType = claim.Type, ClaimValue = claim.Value }, cancellationToken: ct)
+            ).ConfigureAwait(false);
+        }
+        
+         public async Task AddClaimsAsync(ApplicationUser user, IEnumerable<Claim> claims, CancellationToken ct = default)
+        {
+            user.ThrowIfNull(nameof(user));
+            claims.ThrowIfNull(nameof(claims));
+            
+            var command = $"""
+                           INSERT INTO {databaseConnectionFactory.Options.DbSchema}.{databaseConnectionFactory.Options.UserClaimsTable} 
+                           (Id, UserId, ClaimType, ClaimValue) 
+                           SELECT {databaseConnectionFactory.Options.DbSchema}.{databaseConnectionFactory.Options.UserClaimsSequence}.NEXTVAL, :UserId, :ClaimType, :ClaimValue
+                           FROM DUAL
+                           WHERE NOT EXISTS (
+                               SELECT 1 FROM {databaseConnectionFactory.Options.DbSchema}.{databaseConnectionFactory.Options.UserClaimsTable}
+                               WHERE UserId = :UserId AND ClaimType = :ClaimType AND ClaimValue = :ClaimValue
+                           )
+                           """;
+
+            var parameters = claims.Select(c => new { UserId = user.Id, ClaimType = c.Type, ClaimValue = c.Value }).ToList();
+            if (parameters.Count == 0) return;
+
+            await using var oracleConnection = await databaseConnectionFactory.CreateConnectionAsync(ct).ConfigureAwait(false);
+            await using var transaction = await oracleConnection.BeginTransactionAsync(ct).ConfigureAwait(false);
+
+            try
+            {
+                await oracleConnection.ExecuteAsync(
+                    new CommandDefinition(command, parameters, transaction, cancellationToken: ct)
+                ).ConfigureAwait(false);
+                await transaction.CommitAsync(ct).ConfigureAwait(false);
+            }
+            catch
+            {
+                await transaction.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
+                throw;
+            }
+        }
+ 
+        public async Task RemoveClaimsAsync(ApplicationUser user, IEnumerable<Claim> claims, CancellationToken ct = default)
+        {
+            user.ThrowIfNull(nameof(user));
+            claims.ThrowIfNull(nameof(claims));
+ 
+            var command = $"""
+                           DELETE FROM {databaseConnectionFactory.Options.DbSchema}.{databaseConnectionFactory.Options.UserClaimsTable} 
+                           WHERE UserId = :UserId AND ClaimType = :ClaimType AND ClaimValue = :ClaimValue
+                           """;
+
+            var parameters = claims.Select(c => new { UserId = user.Id, ClaimType = c.Type, ClaimValue = c.Value }).ToList();
+            if (parameters.Count == 0) return;
+
+            await using var oracleConnection = await databaseConnectionFactory.CreateConnectionAsync(ct).ConfigureAwait(false);
+
+            await using var transaction = await oracleConnection.BeginTransactionAsync(ct).ConfigureAwait(false);
+            try
+            {
+                await oracleConnection.ExecuteAsync(
+                    new CommandDefinition(command, parameters, transaction, cancellationToken: ct)
+                ).ConfigureAwait(false);
+                await transaction.CommitAsync(ct).ConfigureAwait(false);
+            }
+            catch
+            {
+                await transaction.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
+                throw;
+            }
+        }
+ 
+        public async Task ReplaceClaimAsync(ApplicationUser user, Claim claim, Claim newClaim, CancellationToken ct = default)
+        {
+            user.ThrowIfNull(nameof(user));
+            claim.ThrowIfNull(nameof(claim));
+            newClaim.ThrowIfNull(nameof(newClaim));
+ 
+            var command = $"""
+                           UPDATE {databaseConnectionFactory.Options.DbSchema}.{databaseConnectionFactory.Options.UserClaimsTable} 
+                           SET ClaimType = :NewClaimType, ClaimValue = :NewClaimValue
+                           WHERE UserId = :UserId AND ClaimType = :ClaimType AND ClaimValue = :ClaimValue
+                           """;
+ 
+            await using var oracleConnection = await databaseConnectionFactory.CreateConnectionAsync(ct).ConfigureAwait(false);
+ 
+            await oracleConnection.ExecuteAsync(
+                new CommandDefinition(command, new {
+                    UserId = user.Id,
+                    ClaimType = claim.Type,
+                    ClaimValue = claim.Value,
+                    NewClaimType = newClaim.Type,
+                    NewClaimValue = newClaim.Value
+                }, cancellationToken: ct)
             ).ConfigureAwait(false);
         }
         
