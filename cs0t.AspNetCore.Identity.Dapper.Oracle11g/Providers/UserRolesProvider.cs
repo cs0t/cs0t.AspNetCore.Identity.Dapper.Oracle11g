@@ -10,12 +10,12 @@ namespace cs0t.AspNetCore.Identity.Dapper.Oracle11g.Providers
 {
     internal class UserRolesProvider(IDatabaseConnectionFactory databaseConnectionFactory)
     {
-        public async Task<IEnumerable<(long RoleId, string RoleName)>> GetRolesAsync(ApplicationUser user, CancellationToken ct = default) 
+        public async Task<List<ApplicationUserRole>> GetRolesAsync(ApplicationUser user, CancellationToken ct = default) 
         {
             user.ThrowIfNull(nameof(user));
 
             var command = $"""
-                           SELECT r.Id AS RoleId, r.Name AS RoleName 
+                           SELECT ur.UserId, r.Id AS RoleId, r.Name AS RoleName, r.NormalizedName AS NormalizedRoleName
                            FROM {databaseConnectionFactory.Options.DbSchema}.{databaseConnectionFactory.Options.RolesTableName} r 
                            INNER JOIN {databaseConnectionFactory.Options.DbSchema}.{databaseConnectionFactory.Options.UserRolesTableName} ur ON ur.RoleId = r.Id 
                            WHERE ur.UserId = :UserId
@@ -23,9 +23,11 @@ namespace cs0t.AspNetCore.Identity.Dapper.Oracle11g.Providers
 
             await using var oracleConnection = await databaseConnectionFactory.CreateConnectionAsync(ct).ConfigureAwait(false);
             
-            return await oracleConnection.QueryAsync<(long RoleId, string RoleName)>(
+            var roles = await oracleConnection.QueryAsync<ApplicationUserRole>(
                 new CommandDefinition(command, new { UserId = user.Id }, cancellationToken: ct)
             ).ConfigureAwait(false);
+
+            return roles.ToList();
         }
         
         public async Task AddToRoleAsync(ApplicationUser user, long roleId, CancellationToken ct = default)
@@ -35,7 +37,11 @@ namespace cs0t.AspNetCore.Identity.Dapper.Oracle11g.Providers
             var command = $"""
                            INSERT INTO {databaseConnectionFactory.Options.DbSchema}.{databaseConnectionFactory.Options.UserRolesTableName} 
                            (UserId, RoleId) 
-                           VALUES (:UserId, :RoleId)
+                           SELECT :UserId, :RoleId FROM DUAL
+                           WHERE NOT EXISTS (
+                               SELECT 1 FROM {databaseConnectionFactory.Options.DbSchema}.{databaseConnectionFactory.Options.UserRolesTableName}
+                               WHERE UserId = :UserId AND RoleId = :RoleId
+                           )
                            """;
 
             await using var oracleConnection = await databaseConnectionFactory.CreateConnectionAsync(ct).ConfigureAwait(false);
@@ -81,6 +87,25 @@ namespace cs0t.AspNetCore.Identity.Dapper.Oracle11g.Providers
             ).ConfigureAwait(false);
 
             return result.ToList();
+        }
+        
+        public async Task<bool> IsInRoleAsync(ApplicationUser user, long roleId, CancellationToken ct = default)
+        {
+            user.ThrowIfNull(nameof(user));
+
+            var command = $"""
+                           SELECT COUNT(1) 
+                           FROM {databaseConnectionFactory.Options.DbSchema}.{databaseConnectionFactory.Options.UserRolesTableName}
+                           WHERE UserId = :UserId AND RoleId = :RoleId
+                           """;
+
+            await using var oracleConnection = await databaseConnectionFactory.CreateConnectionAsync(ct).ConfigureAwait(false);
+
+            var result = await oracleConnection.ExecuteScalarAsync<int>(
+                new CommandDefinition(command, new { UserId = user.Id, RoleId = roleId }, cancellationToken: ct)
+            ).ConfigureAwait(false);
+
+            return result > 0;
         }
     }
 }
