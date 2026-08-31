@@ -18,6 +18,7 @@
         <Description>A Dapper-backed implementation of ASP.NET Core Identity Stores updated for .NET 8 and customized for legacy Oracle 11g (11.2.0.3.0) databases using the 19c LTS driver.</Description>
         <PackageTags>aspnetcore.identity dapper oracle11g identity</PackageTags>
         <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+        <Nullable>enable</Nullable>
     </PropertyGroup>
 
     <ItemGroup Condition="'$(TargetFramework)' == 'net8.0'">

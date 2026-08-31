@@ -1,209 +1,170 @@
-# AspNetCore.Identity.Dapper
-This project provides a Dapper implementation of UserStore and RoleStore, to be used with Microsoft.AspNetCore.Identity.
+# cs0t.AspNetCore.Identity.Dapper.Oracle11g
 
-## Background
-This project came about after looking around at other Dapper implementations of AspNetCore.Identity but struggling to find something that was updated with the latest Dotnet Core version. This implementation is made for Dotnet Core and if used with anything else would have to be rewritten - atleast partially.
+Originally forked from : https://github.com/simonfaltum/AspNetCore.Identity.Dapper
 
-I needed this to be run together with IdentityServer4, on a schema I specified. It works completely transparant for IdentityServer4, just make sure to use the ApplicationUser entity when adding it to the AddIdentityServer() middleware as shown below.
+A Dapper-backed implementation of ASP.NET Core Identity user and role stores for Oracle 11g, specifically Oracle Database 11g 11.2.0.3.0.
 
+The package uses `ApplicationUser : IdentityUser<long>` and `ApplicationRole : IdentityRole<long>`, supports the standard Identity manager APIs, and targets `netstandard2.1` and `net8.0`.
+
+## Features
+
+- Dapper-based `IUserStore` and `IRoleStore` implementations
+- Users, roles, claims, user-role links, external logins, and authentication tokens
+- Oracle sequences and `RETURNING ... INTO` for generated `long` IDs
+- Optimistic concurrency through Identity concurrency stamps
+- Lazy relationship loading with in-memory synchronization
+- Atomic aggregate creation and updates
+- Configurable schema, table names, and sequence names
+- Oracle 11g-compatible DML and managed Oracle connections
+- Custom Dapper handlers for `bool`, `DateTimeOffset`, and `Guid`
+
+## Persistence and in-memory synchronization
+
+Core lookups such as `FindByIdAsync`, `FindByNameAsync`, and `FindByEmailAsync` load only the user or role row. Relationship collections remain `null` until an Identity operation needs them.
+
+### Collection state contract
+
+For `ApplicationUser.Claims`, `Roles`, `Logins`, and `Tokens`, and `ApplicationRole.Claims`:
+
+| Collection state | Meaning during `CreateAsync` or `UpdateAsync` |
+| --- | --- |
+| `null` | Not loaded or changed. The corresponding table is not modified. |
+| Empty list | Authoritative empty state. Existing relationships are deleted. |
+| Populated list | Authoritative state. Existing rows are deleted and the list is reinserted. |
+
+This null boundary protects relationships when a detached or partially populated object is updated. Do not initialize an unused collection on a detached object unless replacing that relationship set is intentional.
+
+### Point operations
+
+Identity operations such as adding a claim, assigning a role, adding a login, or setting a token use write-through synchronization:
+
+1. The relevant collection is loaded once if it is currently `null`.
+2. Logical duplicates are rejected or skipped in memory.
+3. A targeted `INSERT`, `UPDATE`, `MERGE`, or `DELETE` is executed immediately.
+4. The in-memory collection is changed only after the SQL operation succeeds.
+
+Further reads of that collection on the same object use memory. Unrelated collections remain unloaded.
+
+`ApplicationUser.Roles` uses `ApplicationUserRole`, which adds `RoleName` and `NormalizedRoleName` to the Identity user-role link. This allows role-name reads and membership checks from the loaded collection.
+
+### Aggregate operations
+
+`CreateAsync` and `UpdateAsync` persist the core row and every non-null relationship collection in one transaction. Child foreign keys are assigned from the aggregate root ID. Duplicate logical relationships in detached aggregates are rejected before SQL is executed.
+
+Updates use an atomic optimistic-concurrency predicate: the store creates a new concurrency stamp, while the provider compares the database stamp with the original stamp in the `UPDATE` statement. A conflict rolls back the transaction and restores the original in-memory stamp.
+
+Deletes expect the Oracle schema to cascade from users and roles to their dependent relationship rows.
+
+## Oracle type handling
+
+`AddDapperStores` registers the handlers globally with Dapper:
+
+- `OracleBoolHandler` maps nullable and non-nullable `bool` values to numeric `0`/`1` values suitable for an Oracle numeric column.
+- `OracleDateTimeOffsetHandler` maps `DateTimeOffset` to Oracle `TIMESTAMP WITH TIME ZONE` and writes values in UTC.
+- `OracleGuidHandler` maps `Guid` to 16-byte binary data and converts between .NET and Oracle byte ordering. Use an Oracle `RAW(16)` column for values handled this way.
+
+The default connection factory also enables bind-by-name and configures the managed Oracle client to permit Oracle 11g authentication:
+
+```csharp
+OracleConfiguration.SqlNetAllowedLogonVersionClient =
+    OracleAllowedLogonVersionClient.Version11;
 ```
 
-    //Code Omitted
+## Installation
 
-    var builder = services.AddIdentityServer(options =>
-        {
-            options.Events.RaiseErrorEvents = true;
-            options.Events.RaiseInformationEvents = true;
-            options.Events.RaiseFailureEvents = true;
-            options.Events.RaiseSuccessEvents = true;
-            options.IssuerUri = authority;
-        })
-        .AddAspNetIdentity<ApplicationUser>();
+Install the package when it is available from your configured NuGet source:
 
-    //Code Omitted
-
+```powershell
+dotnet add package cs0t.AspNetCore.Identity.Dapper.Oracle11g
 ```
 
-## Main features
+For source development, add a project reference instead:
 
-The library provides an implementation of the UserStore and RoleStore used by ASP.NET Core Identity. It is an alternative to using the EntityFramework implementation (middleware: .AddEntityFrameworkStores<ApplicationDbContext>()), if I remember correctly from the package Microsoft.AspNetCore.Identity.EntityFrameworkCore.
-
-### Relationship collection behavior
-
-Users are retrieved without claims, roles, logins, or tokens, and roles are retrieved without claims. Each nullable collection has the following contract:
-
-- `null` means the relationship was not loaded or changed. Aggregate updates leave its table untouched.
-- A non-null empty collection is authoritative and removes every relationship of that type during an aggregate update.
-- A populated collection is authoritative and replaces that relationship type during an aggregate update.
-
-The first Identity operation that needs a collection loads only that collection. Point operations then use targeted write-through SQL and update the loaded list after the database operation succeeds. Subsequent reads from the same aggregate use memory. `CreateAsync` and `UpdateAsync` conditionally synchronize every non-null collection in the same transaction as the root record. Do not initialize an unused collection on a detached aggregate unless replacing that collection is intentional.
-
-`ApplicationUser.Roles` contains `ApplicationUserRole` items. This type includes `RoleName` and `NormalizedRoleName`, allowing loaded role membership checks and role-name reads without another database query.
-
-More documentation on AspNetCore.Identity can be found here:
-
-[Getting started with ASP.NET Core Identity](https://docs.microsoft.com/en-us/aspnet/core/security/authentication/identity?view=aspnetcore-2.2&tabs=visual-studio)
-
-[Configure ASP.NET Core Identity](https://docs.microsoft.com/en-us/aspnet/core/security/authentication/identity-configuration?view=aspnetcore-2.2)
-
-
-If you are just beginning out with IdentityServer4, it is important to note that this library will help you with persistence of the IdentityServer4 settings (such as which Clients to authorize, which ApiResources and such) but anything related to **Users** is not handled in this library. 
-
-Both libraries are made to let the developer customize ConnectionString and DatabaseSchema.
-It is built for Dotnet Core (latest version as of december 2019: 3.1.0), with DependencyInjection, making customization easy.
-
-
-## Getting Started
-
-These instructions will help you get started.
-
-There is two packages currently.
-
-**IdentityServer4.Dapper.Storage**: This package is the library itself that replaces the stores Microsoft.AspNetCore.Identity uses.
-
-**IdentityServer4.Storage.DatabaseScripts.DbUp**: This is a small project which contains SQL scripts to create databases. It uses DbUp, but you can just take the SQL scripts and use them with any database migrations you might use. 
-
-
-### Prerequisites
-
-You will need Microsoft.AspNetCore.Identity in order to use this library.
-
-```
-dotnet add package VeryGood.AspNetCore.Identity.Dapper
-dotnet add package VeryGood.AspNetCore.Identity.DatabaseScripts.DbUp
+```powershell
+dotnet add reference path\to\cs0t.AspNetCore.Identity.Dapper.Oracle11g.csproj
 ```
 
-Once installed, the library is in the following namespace
+## ASP.NET Core Identity setup
 
-```
-using AspNetCore.Identity.Dapper;
-using AspNetCore.Identity.Dapper.Models;
-```
+Register the provided models and stores during service configuration:
 
-### Get AspNetCore.Identity.Dapper working
+```csharp
+using cs0t.AspNetCore.Identity.Dapper.Oracle11g;
+using cs0t.AspNetCore.Identity.Dapper.Oracle11g.Models;
+using Microsoft.AspNetCore.Identity;
 
-In order to enable the AspNetCore.Identity.Dapper, invoke the middleware following the standard .AddIdentityCore or AddIdentity in ConfigureServices.
-Make sure when specifying schema, to not include brackets.
-
-**Example with AddIdentityCore**
-
-```
-        public void ConfigureServices(IServiceCollection services)
-        {
-            /*
-            Configuration omitted
-            */
-
-            services.AddIdentityCore<ApplicationUser>(options =>
-            {
-                options.User.AllowedUserNameCharacters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._@+";
-                options.User.RequireUniqueEmail = true;
-
-                options.Password.RequireDigit = true;
-                options.Password.RequiredLength = 8;
-                options.Password.RequireLowercase = true;
-                options.Password.RequireNonAlphanumeric = false;
-                options.Password.RequireUppercase = true;
-            })
-            .AddRoles<ApplicationRole>()
-            .AddDapperStores(options =>
-            {
-                options.ConnectionString = "my connectionString";
-                options.DbSchema = "my schema";
-            });
-
-            
-            /* 
-            Configuration omitted
-             */
-
-        }
+builder.Services
+    .AddIdentityCore<ApplicationUser>(options =>
+    {
+        options.User.RequireUniqueEmail = true;
+        options.Password.RequiredLength = 8;
+    })
+    .AddRoles<ApplicationRole>()
+    .AddDapperStores(options =>
+    {
+        options.ConnectionString = builder.Configuration
+            .GetConnectionString("IdentityDatabase")!;
+        options.DbSchema = "IDENTITY";
+    });
 ```
 
-It is important to add ApplicationUser and ApplicationRole as the standard User/Role entities.
+`AddDapperStores` supports the package's `ApplicationUser` and `ApplicationRole` types. Use `UserManager<ApplicationUser>` and `RoleManager<ApplicationRole>` normally after registration.
 
-Another example is provided below with usage of .AddIdentity().
+The same store registration can follow `AddIdentity<ApplicationUser, ApplicationRole>()`:
 
-```
-        public void ConfigureServices(IServiceCollection services)
-        {
-            /*
-            Configuration omitted
-            */
-            
-            services.AddIdentity<ApplicationUser, ApplicationRole>(options =>
-                {
-                options.User.AllowedUserNameCharacters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._@+";
-                options.User.RequireUniqueEmail = true;
-
-                options.Password.RequireDigit = true;
-                options.Password.RequiredLength = 8;
-                options.Password.RequireLowercase = true;
-                options.Password.RequireNonAlphanumeric = false;
-                options.Password.RequireUppercase = true;
-                })
-                .AddDapperStores(options =>
-                {
-                    options.ConnectionString = "my connectionString";
-                    options.DbSchema = "my schema";
-                });
-
-
-            /* 
-            Configuration omitted 
-            */
-
-        }
+```csharp
+builder.Services
+    .AddIdentity<ApplicationUser, ApplicationRole>()
+    .AddDapperStores(options =>
+    {
+        options.ConnectionString = builder.Configuration
+            .GetConnectionString("IdentityDatabase")!;
+        options.DbSchema = "IDENTITY";
+    });
 ```
 
-When creating new users or otherwise interacting with AspNetCore.Identity, it should be done through the UserManager / RoleManager as you normally would (if you were using EntityFramework for example).
+## Database configuration
 
+The application must provide an existing Oracle schema containing the Identity tables, foreign keys, indexes, and sequences. The default object names are:
 
-### Get AspNetCore.Identity.DatabaseScripts.DbUp working
+| Purpose | Default name |
+| --- | --- |
+| Users | `ASPNET_USERS` |
+| Roles | `ASPNET_ROLES` |
+| User roles | `ASPNET_USER_ROLES` |
+| User claims | `ASPNET_USER_CLAIMS` |
+| Role claims | `ASPNET_USER_ROLE_CLAIMS` |
+| User logins | `ASPNET_USER_LOGINS` |
+| User tokens | `ASPNET_USER_TOKENS` |
+| User IDs | `SEQ_ASPNET_USERS` |
+| Role IDs | `SEQ_ASPNET_ROLES` |
+| User claim IDs | `SEQ_USER_CLAIMS` |
+| Role claim IDs | `SEQ_ROLE_CLAIMS` |
 
-This library is quite simple. It has in the IIdentityServerMigrations interface one function, UpgradeDatabase
+Names can be overridden in `AddDapperStores`:
 
-```
-bool UpgradeDatabase();
-```
-
-The library itself does two things;
-1. Ensures the Schema exists, and if not creates it.
-2. Creates the tables needed by AspNetCore.Identity.
-
-In order to enable the AspNetCore.Identity.DatabaseScripts.DbUp, just Add the middleware in ConfigureServices. This is done with AddIdentityDbUpDatabaseScripts.
-The schema should be specified **without* brackets, and if not specified will default to dbo.
-
-```
-    public void ConfigureServices(IServiceCollection services)
-        {
-            /*
-            Configuration omitted
-            */
-            var connectionString = "insert your own connection string";
-            services.AddIdentityDbUpDatabaseScripts(options => {
-                        options.ConnectionString = connectionString;
-                        options.DbSchema = "my schema";
-                        });
-       
-            /* 
-            Configuration omitted 
-            */
-
-        }
+```csharp
+.AddDapperStores(options =>
+{
+    options.ConnectionString = connectionString;
+    options.DbSchema = "IDENTITY";
+    options.UsersTableName = "APP_USERS";
+    options.RolesTableName = "APP_ROLES";
+    options.UsersSequence = "SEQ_APP_USERS";
+    options.RolesSequence = "SEQ_APP_ROLES";
+});
 ```
 
-Once this step has been done, it will use the Schema and ConnectionString provided once you call the UpgradeDatabase() function on the IIdentityServerMigrations interface.
+Schema names are normalized to uppercase and should be supplied without SQL Server brackets or other identifier quoting.
 
-It is also possible to create the Migrations class directly and use it without the middleware. This would be done like in the example below
+Database constraints should enforce the same logical uniqueness used by the stores:
 
-```
-            /* code omitted */
+- User claims: `(UserId, ClaimType, ClaimValue)`
+- Role claims: `(RoleId, ClaimType, ClaimValue)`
+- User roles: `(UserId, RoleId)`
+- External logins: `(LoginProvider, ProviderKey)`
+- User tokens: `(UserId, LoginProvider, Name)`
 
-            var connectionString = "my connectionstring";
-            var schema = "my schema";
-            var identityMigrations = new AspNetCore.Identity.DatabaseScripts.DbUp.Migrations(connectionString, schema);
-            var identityResult = identityMigrations.UpgradeDatabase();
+## License
 
-            /* code omitted */
-```
+Licensed under the [MIT License](LICENSE).
