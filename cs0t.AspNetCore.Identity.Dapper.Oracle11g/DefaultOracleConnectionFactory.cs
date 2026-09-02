@@ -40,8 +40,6 @@ namespace cs0t.AspNetCore.Identity.Dapper.Oracle11g
         public async Task<OracleConnection> CreateConnectionAsync(CancellationToken ct = default) {
             var oracleConnection = new OracleConnection(Options.ConnectionString);
             
-            oracleConnection.BindByName = true;
-            
             if (oracleConnection.State != ConnectionState.Open)  
                 await oracleConnection.OpenAsync(ct).ConfigureAwait(false);
             

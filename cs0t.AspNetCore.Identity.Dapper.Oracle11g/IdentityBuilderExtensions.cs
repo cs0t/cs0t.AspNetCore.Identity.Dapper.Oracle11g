@@ -34,6 +34,7 @@ namespace cs0t.AspNetCore.Identity.Dapper.Oracle11g
             
             //create supported 11g connection out of box
             OracleConfiguration.SqlNetAllowedLogonVersionClient = OracleAllowedLogonVersionClient.Version11;
+            OracleConfiguration.BindByName = true;
             
             //add type handlers once on startup
             SqlMapper.AddTypeHandler(typeof(DateTimeOffset), new OracleDateTimeOffsetHandler());
