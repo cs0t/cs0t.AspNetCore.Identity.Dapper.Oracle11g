@@ -42,20 +42,22 @@ namespace cs0t.AspNetCore.Identity.Dapper.Oracle11g.Providers
 
             try
             {
-                var parameters = new DynamicParameters(user);
+                var parameters = CreateUserDynamicParameters(user);
                 parameters.Add("GeneratedId", dbType: DbType.Int64, direction: ParameterDirection.Output);
 
                 var rowsInserted = await connection.ExecuteAsync(
                     new CommandDefinition(sql, parameters, transaction, cancellationToken: ct)
                 ).ConfigureAwait(false);
+                
+                var generatedId = parameters.Get<long>("GeneratedId");
 
-                if (rowsInserted != 1)
+                if (generatedId <= 0)
                 {
                     await transaction.RollbackAsync(ct).ConfigureAwait(false);
                     return IdentityResult.Failed(new IdentityError { Description = $"The user with name {user.UserName} could not be inserted." });
                 }
 
-                user.Id = parameters.Get<long>("GeneratedId");
+                user.Id = generatedId;
                 await SynchronizeRelationshipsAsync(connection, transaction, user, ct).ConfigureAwait(false);
                 await transaction.CommitAsync(ct).ConfigureAwait(false);
                 return IdentityResult.Success;
@@ -104,7 +106,7 @@ namespace cs0t.AspNetCore.Identity.Dapper.Oracle11g.Providers
 
             try
             {
-                var parameters = new DynamicParameters(user);
+                var parameters = CreateUserDynamicParameters(user);
                 parameters.Add("DatabaseConcurrencyStamp", originalConcurrencyStamp);
 
                 var rowsUpdated = await connection.ExecuteAsync(
@@ -140,7 +142,7 @@ namespace cs0t.AspNetCore.Identity.Dapper.Oracle11g.Providers
         {
             if (user.Claims is not null)
             {
-                var deleteSql = $"DELETE FROM {databaseConnectionFactory.Options.DbSchema}.{databaseConnectionFactory.Options.UserClaimsTable} WHERE UserId = :UserId";
+                var deleteSql = $"DELETE FROM {databaseConnectionFactory.Options.DbSchema}.{databaseConnectionFactory.Options.UserClaimsTableName} WHERE UserId = :UserId";
                 await connection.ExecuteAsync(new CommandDefinition(deleteSql, new { UserId = user.Id }, transaction, cancellationToken: ct)).ConfigureAwait(false);
 
                 var claims = user.Claims
@@ -151,7 +153,7 @@ namespace cs0t.AspNetCore.Identity.Dapper.Oracle11g.Providers
                 foreach (var claim in claims) claim.UserId = user.Id;
                 if (claims.Count > 0)
                 {
-                    var insertSql = $"INSERT INTO {databaseConnectionFactory.Options.DbSchema}.{databaseConnectionFactory.Options.UserClaimsTable} (Id, UserId, ClaimType, ClaimValue) VALUES ({databaseConnectionFactory.Options.DbSchema}.{databaseConnectionFactory.Options.UserClaimsSequence}.NEXTVAL, :UserId, :ClaimType, :ClaimValue)";
+                    var insertSql = $"INSERT INTO {databaseConnectionFactory.Options.DbSchema}.{databaseConnectionFactory.Options.UserClaimsTableName} (Id, UserId, ClaimType, ClaimValue) VALUES ({databaseConnectionFactory.Options.DbSchema}.{databaseConnectionFactory.Options.UserClaimsSequence}.NEXTVAL, :UserId, :ClaimType, :ClaimValue)";
                     await connection.ExecuteAsync(new CommandDefinition(insertSql, claims, transaction, cancellationToken: ct)).ConfigureAwait(false);
                 }
             }
@@ -303,6 +305,34 @@ namespace cs0t.AspNetCore.Identity.Dapper.Oracle11g.Providers
             return await connection.QuerySingleOrDefaultAsync<ApplicationUser>(
                 new CommandDefinition(sql, new { NormalizedEmail = normalizedEmail }, cancellationToken: ct)
             ).ConfigureAwait(false);
+        }
+
+        private static DynamicParameters CreateUserDynamicParameters(ApplicationUser user)
+        {
+            var parameters = new DynamicParameters();
+            parameters.Add("Id", user.Id);
+            parameters.Add("UserName", user.UserName);
+            parameters.Add("NormalizedUserName", user.NormalizedUserName);
+            parameters.Add("Email", user.Email);
+            parameters.Add("NormalizedEmail", user.NormalizedEmail);
+            parameters.Add("EmailConfirmed", user.EmailConfirmed ? 1 : 0); 
+            parameters.Add("PasswordHash", user.PasswordHash);
+            parameters.Add("SecurityStamp", user.SecurityStamp);
+            parameters.Add("ConcurrencyStamp", user.ConcurrencyStamp);
+            parameters.Add("PhoneNumber", user.PhoneNumber);
+            parameters.Add("PhoneNumberConfirmed", user.PhoneNumberConfirmed ? 1 : 0);
+            parameters.Add("TwoFactorEnabled", user.TwoFactorEnabled ? 1 : 0);
+            parameters.Add("LockoutEnd", user.LockoutEnd?.UtcDateTime); 
+            parameters.Add("LockoutEnabled", user.LockoutEnabled ? 1 : 0);
+            parameters.Add("AccessFailedCount", user.AccessFailedCount);
+            parameters.Add("FirstName", user.FirstName);
+            parameters.Add("LastName", user.LastName);
+            parameters.Add("IsActive", user.IsActive ? 1 : 0);
+            parameters.Add("CreatedAtUtc", user.CreatedAtUtc);
+            parameters.Add("LastLoggedInAtUtc", user.LastLoggedInAtUtc);
+            parameters.Add("PasswordChangedAtUtc", user.PasswordChangedAtUtc);
+            
+            return parameters;
         }
     }
 }
