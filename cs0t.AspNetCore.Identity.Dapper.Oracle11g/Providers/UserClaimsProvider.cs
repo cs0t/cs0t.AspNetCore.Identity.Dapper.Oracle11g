@@ -18,7 +18,7 @@ namespace cs0t.AspNetCore.Identity.Dapper.Oracle11g.Providers
             
             var command = $"""
                            SELECT ClaimType, ClaimValue 
-                           FROM {databaseConnectionFactory.Options.DbSchema}.{databaseConnectionFactory.Options.UserClaimsTable} 
+                           FROM {databaseConnectionFactory.Options.DbSchema}.{databaseConnectionFactory.Options.UserClaimsTableName} 
                            WHERE UserId = :UserId
                            """;
 
@@ -39,12 +39,12 @@ namespace cs0t.AspNetCore.Identity.Dapper.Oracle11g.Providers
             claim.ThrowIfNull(nameof(claim));
 
             var command = $"""
-                           INSERT INTO {databaseConnectionFactory.Options.DbSchema}.{databaseConnectionFactory.Options.UserClaimsTable} 
+                           INSERT INTO {databaseConnectionFactory.Options.DbSchema}.{databaseConnectionFactory.Options.UserClaimsTableName} 
                            (Id, UserId, ClaimType, ClaimValue) 
                            SELECT {databaseConnectionFactory.Options.DbSchema}.{databaseConnectionFactory.Options.UserClaimsSequence}.NEXTVAL, :UserId, :ClaimType, :ClaimValue
                            FROM DUAL
                            WHERE NOT EXISTS (
-                               SELECT 1 FROM {databaseConnectionFactory.Options.DbSchema}.{databaseConnectionFactory.Options.UserClaimsTable}
+                               SELECT 1 FROM {databaseConnectionFactory.Options.DbSchema}.{databaseConnectionFactory.Options.UserClaimsTableName}
                                WHERE UserId = :UserId AND ClaimType = :ClaimType AND ClaimValue = :ClaimValue
                            )
                            """;
@@ -62,7 +62,7 @@ namespace cs0t.AspNetCore.Identity.Dapper.Oracle11g.Providers
             claim.ThrowIfNull(nameof(claim));
 
             var command = $"""
-                           DELETE FROM {databaseConnectionFactory.Options.DbSchema}.{databaseConnectionFactory.Options.UserClaimsTable} 
+                           DELETE FROM {databaseConnectionFactory.Options.DbSchema}.{databaseConnectionFactory.Options.UserClaimsTableName} 
                            WHERE UserId = :UserId AND ClaimType = :ClaimType AND ClaimValue = :ClaimValue
                            """;
 
@@ -79,12 +79,12 @@ namespace cs0t.AspNetCore.Identity.Dapper.Oracle11g.Providers
             claims.ThrowIfNull(nameof(claims));
             
             var command = $"""
-                           INSERT INTO {databaseConnectionFactory.Options.DbSchema}.{databaseConnectionFactory.Options.UserClaimsTable} 
+                           INSERT INTO {databaseConnectionFactory.Options.DbSchema}.{databaseConnectionFactory.Options.UserClaimsTableName} 
                            (Id, UserId, ClaimType, ClaimValue) 
                            SELECT {databaseConnectionFactory.Options.DbSchema}.{databaseConnectionFactory.Options.UserClaimsSequence}.NEXTVAL, :UserId, :ClaimType, :ClaimValue
                            FROM DUAL
                            WHERE NOT EXISTS (
-                               SELECT 1 FROM {databaseConnectionFactory.Options.DbSchema}.{databaseConnectionFactory.Options.UserClaimsTable}
+                               SELECT 1 FROM {databaseConnectionFactory.Options.DbSchema}.{databaseConnectionFactory.Options.UserClaimsTableName}
                                WHERE UserId = :UserId AND ClaimType = :ClaimType AND ClaimValue = :ClaimValue
                            )
                            """;
@@ -92,19 +92,19 @@ namespace cs0t.AspNetCore.Identity.Dapper.Oracle11g.Providers
             var parameters = claims.Select(c => new { UserId = user.Id, ClaimType = c.Type, ClaimValue = c.Value }).ToList();
             if (parameters.Count == 0) return;
 
-            await using var oracleConnection = await databaseConnectionFactory.CreateConnectionAsync(ct).ConfigureAwait(false);
-            await using var transaction = await oracleConnection.BeginTransactionAsync(ct).ConfigureAwait(false);
+            await using var connection = await databaseConnectionFactory.CreateConnectionAsync(ct).ConfigureAwait(false);
+            await using var transaction = await connection.BeginTransactionAsync(ct).ConfigureAwait(false);
 
             try
             {
-                await oracleConnection.ExecuteAsync(
+                await connection.ExecuteAsync(
                     new CommandDefinition(command, parameters, transaction, cancellationToken: ct)
                 ).ConfigureAwait(false);
                 await transaction.CommitAsync(ct).ConfigureAwait(false);
             }
             catch
             {
-                await transaction.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
+                await transaction.RollbackAsync(ct).ConfigureAwait(false);
                 throw;
             }
         }
@@ -115,26 +115,26 @@ namespace cs0t.AspNetCore.Identity.Dapper.Oracle11g.Providers
             claims.ThrowIfNull(nameof(claims));
  
             var command = $"""
-                           DELETE FROM {databaseConnectionFactory.Options.DbSchema}.{databaseConnectionFactory.Options.UserClaimsTable} 
+                           DELETE FROM {databaseConnectionFactory.Options.DbSchema}.{databaseConnectionFactory.Options.UserClaimsTableName} 
                            WHERE UserId = :UserId AND ClaimType = :ClaimType AND ClaimValue = :ClaimValue
                            """;
 
             var parameters = claims.Select(c => new { UserId = user.Id, ClaimType = c.Type, ClaimValue = c.Value }).ToList();
             if (parameters.Count == 0) return;
 
-            await using var oracleConnection = await databaseConnectionFactory.CreateConnectionAsync(ct).ConfigureAwait(false);
+            await using var connection = await databaseConnectionFactory.CreateConnectionAsync(ct).ConfigureAwait(false);
 
-            await using var transaction = await oracleConnection.BeginTransactionAsync(ct).ConfigureAwait(false);
+            await using var transaction = await connection.BeginTransactionAsync(ct).ConfigureAwait(false);
             try
             {
-                await oracleConnection.ExecuteAsync(
+                await connection.ExecuteAsync(
                     new CommandDefinition(command, parameters, transaction, cancellationToken: ct)
                 ).ConfigureAwait(false);
                 await transaction.CommitAsync(ct).ConfigureAwait(false);
             }
             catch
             {
-                await transaction.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
+                await transaction.RollbackAsync(ct).ConfigureAwait(false);
                 throw;
             }
         }
@@ -146,7 +146,7 @@ namespace cs0t.AspNetCore.Identity.Dapper.Oracle11g.Providers
             newClaim.ThrowIfNull(nameof(newClaim));
  
             var command = $"""
-                           UPDATE {databaseConnectionFactory.Options.DbSchema}.{databaseConnectionFactory.Options.UserClaimsTable} 
+                           UPDATE {databaseConnectionFactory.Options.DbSchema}.{databaseConnectionFactory.Options.UserClaimsTableName} 
                            SET ClaimType = :NewClaimType, ClaimValue = :NewClaimValue
                            WHERE UserId = :UserId AND ClaimType = :ClaimType AND ClaimValue = :ClaimValue
                            """;
@@ -171,7 +171,7 @@ namespace cs0t.AspNetCore.Identity.Dapper.Oracle11g.Providers
             var command = $"""
                            SELECT u.* 
                            FROM {databaseConnectionFactory.Options.DbSchema}.{databaseConnectionFactory.Options.UsersTableName} u
-                           INNER JOIN {databaseConnectionFactory.Options.DbSchema}.{databaseConnectionFactory.Options.UserClaimsTable} uc ON u.Id = uc.UserId
+                           INNER JOIN {databaseConnectionFactory.Options.DbSchema}.{databaseConnectionFactory.Options.UserClaimsTableName} uc ON u.Id = uc.UserId
                            WHERE uc.ClaimType = :ClaimType AND uc.ClaimValue = :ClaimValue
                            """;
 
