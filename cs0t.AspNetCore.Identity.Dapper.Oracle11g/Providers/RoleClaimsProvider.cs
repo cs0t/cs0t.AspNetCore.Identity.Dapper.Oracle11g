@@ -4,7 +4,6 @@ using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
 using Dapper;
-using Microsoft.AspNetCore.Identity;
 
 namespace cs0t.AspNetCore.Identity.Dapper.Oracle11g.Providers
 {
@@ -15,7 +14,7 @@ namespace cs0t.AspNetCore.Identity.Dapper.Oracle11g.Providers
         {
             var command = $"""
                 SELECT ClaimType, ClaimValue 
-                FROM {databaseConnectionFactory.Options.DbSchema}.{databaseConnectionFactory.Options.UserRoleClaimsTable} 
+                FROM {databaseConnectionFactory.Options.DbSchema}.{databaseConnectionFactory.Options.UserRoleClaimsTableName} 
                 WHERE RoleId = :RoleId
                 """;
             
@@ -35,12 +34,12 @@ namespace cs0t.AspNetCore.Identity.Dapper.Oracle11g.Providers
              claim.ThrowIfNull(nameof(claim));
              
              var command = $"""
-                            INSERT INTO {databaseConnectionFactory.Options.DbSchema}.{databaseConnectionFactory.Options.UserRoleClaimsTable} 
+                            INSERT INTO {databaseConnectionFactory.Options.DbSchema}.{databaseConnectionFactory.Options.UserRoleClaimsTableName} 
                             (Id, RoleId, ClaimType, ClaimValue) 
                              SELECT {databaseConnectionFactory.Options.DbSchema}.{databaseConnectionFactory.Options.UserRoleClaimsSequence}.NEXTVAL, :RoleId, :ClaimType, :ClaimValue
                              FROM DUAL
                              WHERE NOT EXISTS (
-                                 SELECT 1 FROM {databaseConnectionFactory.Options.DbSchema}.{databaseConnectionFactory.Options.UserRoleClaimsTable}
+                                 SELECT 1 FROM {databaseConnectionFactory.Options.DbSchema}.{databaseConnectionFactory.Options.UserRoleClaimsTableName}
                                  WHERE RoleId = :RoleId AND ClaimType = :ClaimType AND ClaimValue = :ClaimValue
                              )
                             """;
@@ -57,7 +56,7 @@ namespace cs0t.AspNetCore.Identity.Dapper.Oracle11g.Providers
              claim.ThrowIfNull(nameof(claim));
              
              var command = $"""
-                 DELETE FROM {databaseConnectionFactory.Options.DbSchema}.{databaseConnectionFactory.Options.UserRoleClaimsTable} 
+                 DELETE FROM {databaseConnectionFactory.Options.DbSchema}.{databaseConnectionFactory.Options.UserRoleClaimsTableName} 
                  WHERE RoleId = :RoleId AND ClaimType = :ClaimType AND ClaimValue = :ClaimValue
                  """;
 
