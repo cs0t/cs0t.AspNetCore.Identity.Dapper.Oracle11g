@@ -25,26 +25,28 @@ namespace cs0t.AspNetCore.Identity.Dapper.Oracle11g.Providers
                            RETURNING Id INTO :GeneratedId
                            """;
 
-            await using var oracleConnection = await databaseConnectionFactory.CreateConnectionAsync(ct).ConfigureAwait(false);
-            await using var transaction = await oracleConnection.BeginTransactionAsync(ct).ConfigureAwait(false);
+            await using var connection = await databaseConnectionFactory.CreateConnectionAsync(ct).ConfigureAwait(false);
+            await using var transaction = await connection.BeginTransactionAsync(ct).ConfigureAwait(false);
 
             try
             {
-                var parameters = new DynamicParameters(role);
+                var parameters = CreateRoleDynamicParameters(role);
                 parameters.Add("GeneratedId", dbType: DbType.Int64, direction: ParameterDirection.Output);
 
-                var rowsInserted = await oracleConnection.ExecuteAsync(
+                var rowsInserted = await connection.ExecuteAsync(
                     new CommandDefinition(command, parameters, transaction, cancellationToken: ct)
                 ).ConfigureAwait(false);
-
-                if (rowsInserted != 1)
+                
+                var generatedId = parameters.Get<long>("GeneratedId");
+                
+                if (generatedId <= 0)
                 {
                     await transaction.RollbackAsync(ct).ConfigureAwait(false);
                     return IdentityResult.Failed(new IdentityError { Description = $"The role with name {role.Name} could not be inserted." });
                 }
 
-                role.Id = parameters.Get<long>("GeneratedId");
-                await SynchronizeClaimsAsync(oracleConnection, transaction, role, ct).ConfigureAwait(false);
+                role.Id = generatedId;
+                await SynchronizeClaimsAsync(connection, transaction, role, ct).ConfigureAwait(false);
                 await transaction.CommitAsync(ct).ConfigureAwait(false);
                 return IdentityResult.Success;
             }
@@ -61,8 +63,8 @@ namespace cs0t.AspNetCore.Identity.Dapper.Oracle11g.Providers
             role.ThrowIfNull(nameof(role));
             ValidateClaims(role);
             
-            await using var oracleConnection = await databaseConnectionFactory.CreateConnectionAsync(ct).ConfigureAwait(false);
-            await using var transaction = await oracleConnection.BeginTransactionAsync(ct).ConfigureAwait(false);
+            await using var connection = await databaseConnectionFactory.CreateConnectionAsync(ct).ConfigureAwait(false);
+            await using var transaction = await connection.BeginTransactionAsync(ct).ConfigureAwait(false);
 
             try 
             { 
@@ -73,7 +75,7 @@ namespace cs0t.AspNetCore.Identity.Dapper.Oracle11g.Providers
                                        """;
                 
                 //update role
-                var rowsUpdated = await oracleConnection.ExecuteAsync(
+                var rowsUpdated = await connection.ExecuteAsync(
                     new CommandDefinition(updateRoleCommand, new {
                         role.Name,
                         role.NormalizedName,
@@ -93,7 +95,7 @@ namespace cs0t.AspNetCore.Identity.Dapper.Oracle11g.Providers
                     });
                 }
                 
-                await SynchronizeClaimsAsync(oracleConnection, transaction, role, ct).ConfigureAwait(false);
+                await SynchronizeClaimsAsync(connection, transaction, role, ct).ConfigureAwait(false);
 
                 await transaction.CommitAsync(ct).ConfigureAwait(false);
                 return IdentityResult.Success;
@@ -130,7 +132,7 @@ namespace cs0t.AspNetCore.Identity.Dapper.Oracle11g.Providers
         {
             if (role.Claims is null) return;
 
-            var deleteClaimsCommand = $"DELETE FROM {databaseConnectionFactory.Options.DbSchema}.{databaseConnectionFactory.Options.UserRoleClaimsTable} WHERE RoleId = :RoleId";
+            var deleteClaimsCommand = $"DELETE FROM {databaseConnectionFactory.Options.DbSchema}.{databaseConnectionFactory.Options.UserRoleClaimsTableName} WHERE RoleId = :RoleId";
             await connection.ExecuteAsync(
                 new CommandDefinition(deleteClaimsCommand, new { RoleId = role.Id }, transaction, cancellationToken: ct)
             ).ConfigureAwait(false);
@@ -146,7 +148,7 @@ namespace cs0t.AspNetCore.Identity.Dapper.Oracle11g.Providers
             var insertClaimsCommand = 
                 $"""
                  INSERT INTO 
-                 {databaseConnectionFactory.Options.DbSchema}.{databaseConnectionFactory.Options.UserRoleClaimsTable} 
+                 {databaseConnectionFactory.Options.DbSchema}.{databaseConnectionFactory.Options.UserRoleClaimsTableName} 
                      (Id, RoleId, ClaimType, ClaimValue) 
                  VALUES 
                      ({databaseConnectionFactory.Options.DbSchema}.{databaseConnectionFactory.Options.UserRoleClaimsSequence}.NEXTVAL, :RoleId, :ClaimType, :ClaimValue)
@@ -232,6 +234,16 @@ namespace cs0t.AspNetCore.Identity.Dapper.Oracle11g.Providers
             return await oracleConnection.QueryAsync<ApplicationRole>(
                 new CommandDefinition(command, cancellationToken: ct)
             ).ConfigureAwait(false);
+        }
+
+        private static DynamicParameters CreateRoleDynamicParameters(ApplicationRole role)
+        {
+            var parameters = new DynamicParameters();
+            parameters.Add("Id", role.Id);
+            parameters.Add("Name", role.Name);
+            parameters.Add("NormalizedName", role.NormalizedName);
+            parameters.Add("ConcurrencyStamp", role.ConcurrencyStamp);
+            return parameters;
         }
     }
 }
