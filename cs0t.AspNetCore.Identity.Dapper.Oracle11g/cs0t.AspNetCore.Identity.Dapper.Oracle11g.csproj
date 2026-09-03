@@ -22,6 +22,9 @@
     </PropertyGroup>
 
     <ItemGroup Condition="'$(TargetFramework)' == 'net8.0'">
+        <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+            <_Parameter1>cs0t.AspNetCore.Identity.Dapper.Oracle11g.Tests</_Parameter1> 
+        </AssemblyAttribute>
         <PackageReference Include="Dapper" Version="2.1.35" />
         <PackageReference Include="Oracle.ManagedDataAccess.Core" Version="2.19.310" />
         <PackageReference Include="Microsoft.AspNetCore.Identity" Version="2.3.12" />
@@ -29,6 +32,9 @@
     </ItemGroup>
 
     <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.1'">
+        <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+            <_Parameter1>cs0t.AspNetCore.Identity.Dapper.Oracle11g.Tests</_Parameter1> 
+        </AssemblyAttribute>
         <PackageReference Include="Dapper" Version="2.1.35" />
         <PackageReference Include="Oracle.ManagedDataAccess.Core" Version="2.19.310" />
         <PackageReference Include="Microsoft.AspNetCore.Identity" Version="2.3.12" />
