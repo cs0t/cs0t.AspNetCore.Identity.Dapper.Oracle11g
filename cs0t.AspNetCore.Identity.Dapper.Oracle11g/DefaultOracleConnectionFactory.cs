@@ -10,7 +10,7 @@ namespace cs0t.AspNetCore.Identity.Dapper.Oracle11g
     public class DefaultOracleConnectionFactory : IDatabaseConnectionFactory
     {
         public DbProviderOptions Options { get; }
-        
+
         private DefaultOracleConnectionFactory(DbProviderOptions options)
         {
             Options = options;
@@ -37,14 +37,14 @@ namespace cs0t.AspNetCore.Identity.Dapper.Oracle11g
             return new DefaultOracleConnectionFactory(options);
         }
 
-        public async Task<OracleConnection> CreateConnectionAsync(CancellationToken ct = default) {
+        public async Task<OracleConnection> CreateConnectionAsync(CancellationToken ct = default)
+        {
             var oracleConnection = new OracleConnection(Options.ConnectionString);
-            
-            if (oracleConnection.State != ConnectionState.Open)  
+
+            if (oracleConnection.State != ConnectionState.Open)
                 await oracleConnection.OpenAsync(ct).ConfigureAwait(false);
-            
+
             return oracleConnection;
         }
-
     }
 }
