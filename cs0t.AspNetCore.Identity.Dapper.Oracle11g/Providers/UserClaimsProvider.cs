@@ -1,11 +1,9 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
 using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
 using cs0t.AspNetCore.Identity.Dapper.Oracle11g.Models;
-using cs0t.AspNetCore.Identity.Dapper.Oracle11g.Stores;
 using Dapper;
 
 namespace cs0t.AspNetCore.Identity.Dapper.Oracle11g.Providers
