@@ -86,7 +86,14 @@ dotnet add reference path\to\cs0t.AspNetCore.Identity.Dapper.Oracle11g.csproj
 
 ## ASP.NET Core Identity setup
 
-Register the provided models and stores during service configuration:
+`AddDapperStores` is an extension on `IdentityBuilder`. Call it after
+`AddIdentityCore<ApplicationUser>(...)` or
+`AddIdentity<ApplicationUser, ApplicationRole>(...)`. It supports exactly the
+provided `ApplicationUser` type and, when roles are configured, the provided
+`ApplicationRole` type. Custom user or role types are rejected.
+
+For a role-less application, the extension can be called after registering
+`ApplicationUser` with `AddIdentityCore`:
 
 ```csharp
 using cs0t.AspNetCore.Identity.Dapper.Oracle11g;
@@ -99,6 +106,23 @@ builder.Services
         options.User.RequireUniqueEmail = true;
         options.Password.RequiredLength = 8;
     })
+    .AddDapperStores(options =>
+    {
+        options.ConnectionString = builder.Configuration
+            .GetConnectionString("IdentityDatabase")!;
+        options.DbSchema = "IDENTITY";
+    });
+```
+
+However, the current implementation does not register
+`IUserStore<ApplicationUser>` when no role type is configured. This role-less
+path therefore does not provide a usable Dapper user-store registration.
+
+For roles, add `.AddRoles<ApplicationRole>()` before `AddDapperStores`:
+
+```csharp
+builder.Services
+    .AddIdentityCore<ApplicationUser>()
     .AddRoles<ApplicationRole>()
     .AddDapperStores(options =>
     {
@@ -108,9 +132,8 @@ builder.Services
     });
 ```
 
-`AddDapperStores` supports the package's `ApplicationUser` and `ApplicationRole` types. Use `UserManager<ApplicationUser>` and `RoleManager<ApplicationRole>` normally after registration.
-
-The same store registration can follow `AddIdentity<ApplicationUser, ApplicationRole>()`:
+Alternatively, the role-enabled registration can use
+`AddIdentity<ApplicationUser, ApplicationRole>()`:
 
 ```csharp
 builder.Services
@@ -125,7 +148,19 @@ builder.Services
 
 ## Database configuration
 
-The application must provide an existing Oracle schema containing the Identity tables, foreign keys, indexes, and sequences. The default object names are:
+The application must reference or otherwise provide Oracle Managed Data Access.
+`AddDapperStores` globally configures that provider for Oracle 11g
+authentication (`OracleConfiguration.SqlNetAllowedLogonVersionClient =
+OracleAllowedLogonVersionClient.Version11`) and enables bind-by-name. It also
+globally registers Dapper handlers for `bool`, nullable `bool`,
+`DateTimeOffset`, nullable `DateTimeOffset`, `Guid`, and nullable `Guid`.
+
+It registers a scoped `IDatabaseConnectionFactory`; the factory creates and
+asynchronously opens managed `OracleConnection` instances.
+
+The application must provide an existing Oracle schema with the required
+Identity tables, sequences, foreign keys, indexes, and constraints. This
+package does not provide migrations. The default object names are:
 
 | Purpose | Default name |
 | --- | --- |
@@ -155,7 +190,10 @@ Names can be overridden in `AddDapperStores`:
 });
 ```
 
-Schema names are normalized to uppercase and should be supplied without SQL Server brackets or other identifier quoting.
+`ConnectionString` is required. When supplied, `DbSchema` is trimmed,
+normalized to uppercase, and has `[`, `]`, and backtick SQL identifier quoting
+characters stripped. Table and sequence names can all be overridden through
+`DbProviderOptions`; supply valid Oracle identifiers.
 
 Database constraints should enforce the same logical uniqueness used by the stores:
 
