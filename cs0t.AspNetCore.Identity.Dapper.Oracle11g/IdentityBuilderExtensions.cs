@@ -24,10 +24,21 @@ namespace cs0t.AspNetCore.Identity.Dapper.Oracle11g
         /// allows logon version11 by default. 
         /// </summary>
         /// <param name="builder">Helper functions for configuring identity services.</param>
-        /// <param name="dbProviderOptionsAction"></param>
         /// <returns>The <see cref="IdentityBuilder"/> instance this method extends.</returns>
-        public static IdentityBuilder AddDapperStores(this IdentityBuilder builder, Action<DbProviderOptions>? dbProviderOptionsAction) {
+        public static IdentityBuilder AddDapperStores(this IdentityBuilder builder) {
             AddStores(builder.Services, builder.UserType, builder.RoleType);
+            return builder;
+        }
+        /// <summary>
+        /// Identity builder extension method that handles adding connection factory, setting up name bindings for dapper,
+        /// logon client version and type converters
+        /// </summary>
+        /// <param name="builder"></param>
+        /// <param name="dbProviderOptionsAction"></param>
+        /// <returns></returns>
+        public static IdentityBuilder AddOracle11GConnectionFactory(this IdentityBuilder builder,
+            Action<DbProviderOptions>? dbProviderOptionsAction)
+        {
             var options = new DbProviderOptions();
             dbProviderOptionsAction?.Invoke(options);
             builder.Services.AddSingleton(options);
