@@ -1,8 +1,7 @@
-using Dapper;
-
 namespace cs0t.AspNetCore.Identity.Dapper.Oracle11g.Tests.Infrastructure;
 
-public class OracleInfrastructureTests(OracleDockerFixture fixture) : IClassFixture<OracleDockerFixture>
+[Collection(nameof(OracleDatabaseCollectionFixture))]
+public class OracleInfrastructureTests(OracleDockerFixture fixture)
 {
     private readonly TestDatabaseFactory _dbFactory = new(fixture.ConnectionString);
 
