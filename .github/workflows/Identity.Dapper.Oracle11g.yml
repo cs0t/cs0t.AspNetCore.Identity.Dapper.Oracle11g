@@ -5,9 +5,9 @@ name: Identity.Dapper.Oracle11g CI/CD Pipeline
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -22,28 +22,44 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout Code
-      uses: actions/checkout@v4
+      - name: Checkout Code
+        uses: actions/checkout@v4
 
-    - name: Setup .NET
-      uses: actions/setup-dotnet@v4
-      with:
-        dotnet-version: 8.0.x
-        cache: true
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+          cache: true
 
-    - name: Restore Dependencies
-      run: dotnet restore
+      - name: Restore Dependencies
+        run: dotnet restore --locked-mode
 
-    - name: Build Package
-      run: dotnet build --no-restore --configuration Release /p:Version=1.0.${{ github.run_number }}
+      - name: Build
+        run: dotnet build --no-restore --configuration Release /p:Version=1.0.${{ github.run_number }}
 
-    - name: Run Tests
-      run: dotnet test --no-build --configuration Release --verbosity normal
+      - name: Run Tests
+        run: dotnet test --no-build --configuration Release --verbosity normal
 
-    - name: Pack NuGet Package
-      if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-      run: dotnet pack --no-build --configuration Release /p:Version=1.0.${{ github.run_number }} --output ./dist
+      - name: Pack NuGet Package
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: |
+          dotnet pack \
+            --no-build \
+            --configuration Release \
+            /p:Version=1.0.${{ github.run_number }} \
+            --output ./dist
 
-    - name: Push to NuGet Registry via Trusted Publisher
-      if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-      run: dotnet nuget push "./dist/*.nupkg" --source https://nuget.org --skip-duplicate
+      - name: NuGet Login
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        uses: NuGet/login@v1
+        id: nuget-login
+        with:
+          user: ${{ secrets.NUGET_USER }}
+
+      - name: Push to NuGet
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: |
+          dotnet nuget push "./dist/*.nupkg" \
+            --api-key "${{ steps.nuget-login.outputs.NUGET_API_KEY }}" \
+            --source "https://api.nuget.org/v3/index.json" \
+            --skip-duplicate
