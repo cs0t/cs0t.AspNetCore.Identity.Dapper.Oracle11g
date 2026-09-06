@@ -45,14 +45,23 @@ sealed class OracleDateTimeOffsetHandler : SqlMapper.TypeHandler<DateTimeOffset?
         if(value is DateTimeOffset dateTimeOffset)
             return dateTimeOffset;
         
+        if (value is DateTime dateTime)
+        {
+            if (dateTime.Kind == DateTimeKind.Unspecified)
+            {
+                return new DateTimeOffset(DateTime.SpecifyKind(dateTime, DateTimeKind.Utc));
+            }
+            return new DateTimeOffset(dateTime).ToUniversalTime();
+        }
+
         string? stringValue = value as string ?? value.ToString();
 
         if (DateTimeOffset.TryParse(stringValue, CultureInfo.InvariantCulture, 
-                DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal, out DateTimeOffset result))
+                DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out DateTimeOffset result))
         {
             return result;
         }
-
+        
         throw new FormatException($"Cannot convert {value} to {typeof(DateTimeOffset)}"); 
     }
 }
