@@ -1,5 +1,6 @@
 using System;
 using System.Data;
+using System.Globalization;
 using Dapper;
 using Oracle.ManagedDataAccess.Client;
 
@@ -44,6 +45,14 @@ sealed class OracleDateTimeOffsetHandler : SqlMapper.TypeHandler<DateTimeOffset?
         if(value is DateTimeOffset dateTimeOffset)
             return dateTimeOffset;
         
-        return new DateTimeOffset(Convert.ToDateTime(value), TimeSpan.Zero);
+        string? stringValue = value as string ?? value.ToString();
+
+        if (DateTimeOffset.TryParse(stringValue, CultureInfo.InvariantCulture, 
+                DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal, out DateTimeOffset result))
+        {
+            return result;
+        }
+
+        throw new FormatException($"Cannot convert {value} to {typeof(DateTimeOffset)}"); 
     }
 }
