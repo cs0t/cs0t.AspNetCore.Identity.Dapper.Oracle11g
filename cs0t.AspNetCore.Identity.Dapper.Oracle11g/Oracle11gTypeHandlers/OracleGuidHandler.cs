@@ -51,13 +51,13 @@ sealed class OracleGuidHandler : SqlMapper.TypeHandler<Guid?>
                 return Guid.Parse(stringValue);
             
             //case2: oracle 11g returns raw string instead of bytes "30DD879CEE2F..."
-            if (stringValue.Length == 32)
+            if (stringValue.Length != 32)
             {
-                var hexBytes = HexStringToByteArray(stringValue);
-                FlipGuidBytes(hexBytes);
-                return new Guid(hexBytes);
+                throw new FormatException("Oracle raw string must be 32 characters long.");
             }
-               
+            var hexBytes = HexStringToByteArray(stringValue);
+            FlipGuidBytes(hexBytes);
+            return new Guid(hexBytes);
         }
         return null;
     }
@@ -68,11 +68,8 @@ sealed class OracleGuidHandler : SqlMapper.TypeHandler<Guid?>
         
         for (var i = 0; i < 32; i += 2)
         {
-            if (byte.TryParse(hex.Substring(i, 2), NumberStyles.HexNumber, 
-                    CultureInfo.InvariantCulture, out byte b))
-            {
-                bytes[i / 2] = b;
-            }
+            bytes[i / 2] = byte.Parse(hex.Substring(i, 2), NumberStyles.HexNumber, 
+                    CultureInfo.InvariantCulture);
         }
         return bytes;
     }
