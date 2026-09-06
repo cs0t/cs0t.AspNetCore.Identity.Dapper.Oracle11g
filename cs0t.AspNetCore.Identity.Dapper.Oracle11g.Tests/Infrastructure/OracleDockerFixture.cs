@@ -1,8 +1,8 @@
-using Dapper;
 using DotNet.Testcontainers.Builders;
-using Oracle.ManagedDataAccess.Client;
 using Testcontainers.Oracle;
 using OracleConfiguration = Oracle.ManagedDataAccess.Client.OracleConfiguration;
+using cs0t.AspNetCore.Identity.Dapper.Oracle11g.Oracle11gTypeHandlers;
+
 
 namespace cs0t.AspNetCore.Identity.Dapper.Oracle11g.Tests.Infrastructure;
 
@@ -20,13 +20,27 @@ public sealed class OracleDockerFixture : IAsyncLifetime
                     })
                 )
         .Build();
-
+    
     public string ConnectionString { get; private set; } = string.Empty;
 
+    static OracleDockerFixture()
+    {
+        OracleConfiguration.BindByName = true;
+        OracleConfiguration.SqlNetAllowedLogonVersionClient = OracleAllowedLogonVersionClient.Version11;
+        
+        SqlMapper.AddTypeHandler(typeof(DateTimeOffset), new OracleDateTimeOffsetHandler());
+        SqlMapper.AddTypeHandler(typeof(DateTimeOffset?), new OracleDateTimeOffsetHandler());
+
+        SqlMapper.AddTypeHandler(typeof(Guid), new OracleGuidHandler());
+        SqlMapper.AddTypeHandler(typeof(Guid?), new OracleGuidHandler());
+
+        SqlMapper.AddTypeHandler(typeof(bool), new OracleBoolHandler());
+        SqlMapper.AddTypeHandler(typeof(bool?), new OracleBoolHandler());
+    }
+    
     public async Task InitializeAsync()
     {
         await _container.StartAsync().ConfigureAwait(false);
-        OracleConfiguration.SqlNetAllowedLogonVersionClient = OracleAllowedLogonVersionClient.Version11;
         await InitDbSchema().ConfigureAwait(false);
         
         var builder = new OracleConnectionStringBuilder(_container.GetConnectionString())
