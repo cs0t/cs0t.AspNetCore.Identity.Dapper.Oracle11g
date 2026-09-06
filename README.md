@@ -57,7 +57,7 @@ Deletes expect the Oracle schema to cascade from users and roles to their depend
 
 ## Oracle type handling
 
-`AddDapperStores` registers the handlers globally with Dapper:
+`AddOracle11GConnectionFactory` registers the handlers globally with Dapper:
 
 - `OracleBoolHandler` maps nullable and non-nullable `bool` values to numeric `0`/`1` values suitable for an Oracle numeric column.
 - `OracleDateTimeOffsetHandler` maps `DateTimeOffset` to Oracle `TIMESTAMP WITH TIME ZONE` and writes values in UTC.
@@ -86,14 +86,15 @@ dotnet add reference path\to\cs0t.AspNetCore.Identity.Dapper.Oracle11g.csproj
 
 ## ASP.NET Core Identity setup
 
-`AddDapperStores` is an extension on `IdentityBuilder`. Call it after
-`AddIdentityCore<ApplicationUser>(...)` or
-`AddIdentity<ApplicationUser, ApplicationRole>(...)`. It supports exactly the
-provided `ApplicationUser` type and, when roles are configured, the provided
-`ApplicationRole` type. Custom user or role types are rejected.
+Registration is split into two `IdentityBuilder` extensions:
 
-For a role-less application, the extension can be called after registering
-`ApplicationUser` with `AddIdentityCore`:
+- `AddDapperStores()` registers `UserStore` and `RoleStore` with ASP.NET Core Identity.
+- `AddOracle11GConnectionFactory(options => ...)` configures Oracle 11g, registers the Dapper type handlers, and registers the scoped `IDatabaseConnectionFactory`.
+
+Call both methods after `AddIdentityCore<ApplicationUser>()` and
+`AddRoles<ApplicationRole>()`. `AddDapperStores` supports exactly the provided
+`ApplicationUser` and `ApplicationRole` types; custom Identity entity types are
+not supported.
 
 ```csharp
 using cs0t.AspNetCore.Identity.Dapper.Oracle11g;
@@ -106,25 +107,9 @@ builder.Services
         options.User.RequireUniqueEmail = true;
         options.Password.RequiredLength = 8;
     })
-    .AddDapperStores(options =>
-    {
-        options.ConnectionString = builder.Configuration
-            .GetConnectionString("IdentityDatabase")!;
-        options.DbSchema = "IDENTITY";
-    });
-```
-
-However, the current implementation does not register
-`IUserStore<ApplicationUser>` when no role type is configured. This role-less
-path therefore does not provide a usable Dapper user-store registration.
-
-For roles, add `.AddRoles<ApplicationRole>()` before `AddDapperStores`:
-
-```csharp
-builder.Services
-    .AddIdentityCore<ApplicationUser>()
     .AddRoles<ApplicationRole>()
-    .AddDapperStores(options =>
+    .AddDapperStores()
+    .AddOracle11GConnectionFactory(options =>
     {
         options.ConnectionString = builder.Configuration
             .GetConnectionString("IdentityDatabase")!;
@@ -132,24 +117,38 @@ builder.Services
     });
 ```
 
-Alternatively, the role-enabled registration can use
-`AddIdentity<ApplicationUser, ApplicationRole>()`:
+The same registration works with `AddIdentity<ApplicationUser, ApplicationRole>()`:
 
 ```csharp
+using cs0t.AspNetCore.Identity.Dapper.Oracle11g;
+using cs0t.AspNetCore.Identity.Dapper.Oracle11g.Models;
+using Microsoft.AspNetCore.Identity;
+
 builder.Services
-    .AddIdentity<ApplicationUser, ApplicationRole>()
-    .AddDapperStores(options =>
+    .AddIdentity<ApplicationUser, ApplicationRole>(options =>
+    {
+        options.User.RequireUniqueEmail = true;
+        options.Password.RequiredLength = 8;
+    })
+    .AddDapperStores()
+    .AddOracle11GConnectionFactory(options =>
     {
         options.ConnectionString = builder.Configuration
             .GetConnectionString("IdentityDatabase")!;
         options.DbSchema = "IDENTITY";
     });
 ```
+
+The separation is intentional: store registration is independent of connection
+creation. Applications using the package's default Oracle connection factory
+should call both extensions. Advanced applications may call `AddDapperStores()`
+and register their own `IDatabaseConnectionFactory`; in that case they are also
+responsible for equivalent Oracle client and Dapper type-handler configuration.
 
 ## Database configuration
 
 The application must reference or otherwise provide Oracle Managed Data Access.
-`AddDapperStores` globally configures that provider for Oracle 11g
+`AddOracle11GConnectionFactory` globally configures that provider for Oracle 11g
 authentication (`OracleConfiguration.SqlNetAllowedLogonVersionClient =
 OracleAllowedLogonVersionClient.Version11`) and enables bind-by-name. It also
 globally registers Dapper handlers for `bool`, nullable `bool`,
@@ -176,10 +175,10 @@ package does not provide migrations. The default object names are:
 | User claim IDs | `SEQ_USER_CLAIMS` |
 | Role claim IDs | `SEQ_ROLE_CLAIMS` |
 
-Names can be overridden in `AddDapperStores`:
+Names can be overridden in `AddOracle11GConnectionFactory`:
 
 ```csharp
-.AddDapperStores(options =>
+.AddOracle11GConnectionFactory(options =>
 {
     options.ConnectionString = connectionString;
     options.DbSchema = "IDENTITY";
