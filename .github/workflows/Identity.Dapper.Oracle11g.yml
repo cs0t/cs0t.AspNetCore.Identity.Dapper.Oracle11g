@@ -40,6 +40,8 @@ jobs:
         run: dotnet build --no-restore --configuration Release /p:Version=1.0.${{ github.run_number }}
 
       - name: Run Tests
+        env:
+          TZ: "UTC"
         run: dotnet test --no-build --configuration Release --verbosity normal
 
       - name: Pack NuGet Package
