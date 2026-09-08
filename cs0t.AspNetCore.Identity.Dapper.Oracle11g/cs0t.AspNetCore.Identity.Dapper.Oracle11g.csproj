@@ -13,8 +13,8 @@
         <Authors>cs0t, Simon Faltum</Authors>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
         <Product>cs0t.AspNetCore.Identity.Dapper.Oracle11g</Product>
-        <PackageProjectUrl>https://github.com</PackageProjectUrl>
-        <RepositoryUrl>https://github.com</RepositoryUrl>
+        <PackageProjectUrl>https://github.com/cs0t/cs0t.AspNetCore.Identity.Dapper.Oracle11g</PackageProjectUrl>
+        <RepositoryUrl>https://github.com/cs0t/cs0t.AspNetCore.Identity.Dapper.Oracle11g</RepositoryUrl>
         <Description>A Dapper-backed implementation of ASP.NET Core Identity Stores updated for .NET 8 and customized for legacy Oracle 11g (11.2.0.3.0) databases using the 19c LTS driver.</Description>
         <PackageTags>aspnetcore.identity dapper oracle11g identity</PackageTags>
         <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
